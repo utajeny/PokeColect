@@ -319,6 +319,7 @@ const elements = {
   logoutButton: document.querySelector("#logoutButton"),
   authLock: document.querySelector("#authLock"),
   authRequired: [...document.querySelectorAll("[data-auth-required]")],
+  privateSections: [...document.querySelectorAll(".private-section")],
 };
 
 document.querySelector("#openFormButton").addEventListener("click", () => openEditor());
@@ -523,6 +524,10 @@ function updateAuthUi() {
   const configured = isSupabaseConfigured();
   elements.authRequired.forEach((element) => {
     element.disabled = !signedIn;
+    element.classList.toggle("hidden", !signedIn);
+  });
+  elements.privateSections.forEach((section) => {
+    section.classList.toggle("hidden", !signedIn);
   });
   elements.authLock.classList.toggle("hidden", signedIn);
   elements.authEmail.classList.toggle("hidden", signedIn);
@@ -977,7 +982,6 @@ function render() {
     elements.grid.classList.add("hidden");
     elements.emptyState.classList.add("hidden");
     elements.searchResults.classList.add("hidden");
-    elements.marketMovers.innerHTML = `<p class="result-message">Prihlas sa, potom uvidis svoje market movers.</p>`;
     return;
   }
 

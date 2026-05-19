@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=app-polish" />
   </head>
   <body>
     <div class="app-shell">
@@ -74,7 +74,7 @@
           <p>Bez loginu sa tvoje karty ani binder oznacenia nezobrazia. Po prihlaseni sa ulozia do cloudu a uvidis ich aj na inom zariadeni.</p>
         </section>
 
-        <section class="portfolio-hero" aria-label="Portfolio hodnota">
+        <section class="portfolio-hero private-section" aria-label="Portfolio hodnota">
           <p>Portfolio: <strong>Main</strong></p>
           <div class="portfolio-value" id="portfolioValue">0 EUR</div>
           <div class="portfolio-actions" aria-label="Portfolio akcie">
@@ -85,7 +85,7 @@
           </div>
         </section>
 
-        <section class="stats-grid" aria-label="Statistiky">
+        <section class="stats-grid private-section" aria-label="Statistiky">
           <article>
             <span id="totalCount">0</span>
             <p>Kariet spolu</p>
@@ -104,7 +104,7 @@
           </article>
         </section>
 
-        <section class="market-movers" aria-label="Market movers">
+        <section class="market-movers private-section" aria-label="Market movers">
           <div class="section-head">
             <div>
               <h3>Market movers</h3>
@@ -114,7 +114,7 @@
           <div class="mover-list" id="marketMovers"></div>
         </section>
 
-        <section class="toolbar" aria-label="Vyhladavanie a triedenie">
+        <section class="toolbar private-section" aria-label="Vyhladavanie a triedenie">
           <label class="search-box">
             <span aria-hidden="true">?</span>
             <input id="searchInput" type="search" placeholder="Hladat Pokemona, set alebo cislo..." />
@@ -129,7 +129,7 @@
           </select>
         </section>
 
-        <p class="price-status" id="priceStatus">Cardmarket ceny sa aktualizuju automaticky po otvoreni appky.</p>
+        <p class="price-status private-section" id="priceStatus">Cardmarket ceny sa aktualizuju automaticky po otvoreni appky.</p>
 
         <section class="search-results hidden" id="searchResults" aria-live="polite">
           <div class="results-head">
@@ -272,7 +272,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="auth-config.js?v=login-cloud"></script>
-    <script src="app.js?v=login-cloud"></script>
+    <script src="auth-config.js?v=app-polish"></script>
+    <script src="app.js?v=app-polish"></script>
   </body>
 </html>
