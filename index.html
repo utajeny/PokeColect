@@ -33,9 +33,9 @@
             <span class="icon" aria-hidden="true">*</span>
             Chcem ziskat
           </button>
-          <button class="nav-tab" type="button" data-view="trade">
-            <span class="icon" aria-hidden="true">&lt;&gt;</span>
-            Na vymenu
+          <button class="nav-tab" type="button" data-view="binder">
+            <span class="icon" aria-hidden="true">[]</span>
+            Binder
           </button>
         </nav>
 
@@ -66,7 +66,7 @@
           <div class="portfolio-value" id="portfolioValue">0 EUR</div>
           <div class="portfolio-actions" aria-label="Portfolio akcie">
             <button type="button" title="Market movers">Trend</button>
-            <button type="button" title="Trade analyzer">Trade</button>
+            <button type="button" title="Binder">Binder</button>
             <button type="button" title="Bulk actions">Bulk</button>
             <button type="button" title="Export">Export</button>
           </div>
@@ -87,7 +87,7 @@
           </article>
           <article>
             <span id="valueCount">0 EUR</span>
-            <p>Odhad hodnoty</p>
+            <p>Trend hodnota</p>
           </article>
         </section>
 
@@ -114,6 +114,20 @@
             <button class="ghost-button" id="clearResultsButton" type="button">Zavriet</button>
           </div>
           <div class="result-grid" id="resultGrid"></div>
+        </section>
+
+        <section class="binder-view hidden" id="binderView" aria-live="polite">
+          <div class="binder-head">
+            <div>
+              <h3>Binder</h3>
+              <p><span id="binderCount">0</span> kariet / <span id="binderPages">0</span> stran</p>
+            </div>
+            <div class="binder-toggle" aria-label="Binder layout">
+              <button class="active" type="button">Single</button>
+              <button type="button">Spread</button>
+            </div>
+          </div>
+          <div class="binder-grid" id="binderGrid"></div>
         </section>
 
         <section class="cards-grid" id="cardsGrid" aria-live="polite"></section>
@@ -161,7 +175,7 @@
             <select id="statusInput">
               <option value="owned">Mam v zbierke</option>
               <option value="wishlist">Chcem ziskat</option>
-              <option value="trade">Na vymenu</option>
+              <option value="binder">Binder</option>
             </select>
           </label>
           <label>
@@ -203,6 +217,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=case-insensitive-search"></script>
+    <script src="app.js?v=binder-trend-value"></script>
   </body>
 </html>

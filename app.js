@@ -46,7 +46,7 @@ const sampleCards = [
     series: "Scarlet & Violet",
     number: "001/198",
     rarity: "Common",
-    status: "trade",
+    status: "binder",
     value: 2,
     psa10: 0,
     quantity: 1,
@@ -155,7 +155,7 @@ const rarityPalette = {
 const statusLabels = {
   owned: "Mam",
   wishlist: "Chcem",
-  trade: "Vymena",
+  binder: "Binder",
 };
 
 let cards = loadCards();
@@ -172,6 +172,10 @@ const elements = {
   searchResults: document.querySelector("#searchResults"),
   resultGrid: document.querySelector("#resultGrid"),
   clearResultsButton: document.querySelector("#clearResultsButton"),
+  binderView: document.querySelector("#binderView"),
+  binderGrid: document.querySelector("#binderGrid"),
+  binderCount: document.querySelector("#binderCount"),
+  binderPages: document.querySelector("#binderPages"),
   search: document.querySelector("#searchInput"),
   rarity: document.querySelector("#rarityFilter"),
   sort: document.querySelector("#sortSelect"),
@@ -251,7 +255,10 @@ refreshMarketPrices();
 
 function loadCards() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [];
+    return (JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? []).map((card) => ({
+      ...card,
+      status: card.status === "trade" ? "binder" : card.status,
+    }));
   } catch {
     return [];
   }
@@ -349,10 +356,21 @@ function saveFromForm() {
 function render() {
   const filtered = getVisibleCards();
   renderStats();
-  elements.grid.innerHTML = filtered.map(cardTemplate).join("");
-  elements.emptyState.classList.toggle("hidden", filtered.length > 0);
+  const isBinder = activeView === "binder";
+  elements.binderView.classList.toggle("hidden", !isBinder);
+  elements.grid.classList.toggle("hidden", isBinder);
+  elements.emptyState.classList.toggle("hidden", isBinder || filtered.length > 0);
+  elements.grid.innerHTML = isBinder ? "" : filtered.map(cardTemplate).join("");
+  renderBinder();
 
   elements.grid.querySelectorAll(".edit-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = cards.find((item) => item.id === button.dataset.id);
+      openEditor(card);
+    });
+  });
+
+  elements.binderGrid.querySelectorAll(".binder-slot").forEach((button) => {
     button.addEventListener("click", () => {
       const card = cards.find((item) => item.id === button.dataset.id);
       openEditor(card);
@@ -516,7 +534,7 @@ function getVisibleCards() {
   const sortBy = elements.sort.value;
 
   return cards
-    .filter((card) => activeView === "all" || card.status === activeView)
+    .filter((card) => activeView === "all" || card.status === activeView || (activeView === "binder" && isBinderCard(card)))
     .filter((card) => rarity === "all" || card.rarity === rarity)
     .filter((card) => {
       const haystack = `${card.name} ${card.series} ${card.number} ${card.note}`.toLowerCase();
@@ -524,7 +542,7 @@ function getVisibleCards() {
     })
     .sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name, "sk");
-      if (sortBy === "value") return b.value - a.value;
+      if (sortBy === "value") return getTrendValue(b) - getTrendValue(a);
       return b.createdAt - a.createdAt;
     });
 }
@@ -536,7 +554,7 @@ function renderStats() {
     .filter((card) => card.status === "owned")
     .reduce((sum, card) => sum + getQuantity(card), 0);
   const missing = cards.filter((card) => card.status === "wishlist").length;
-  const value = cards.reduce((sum, card) => sum + (card.status === "owned" ? getCardValue(card) * getQuantity(card) : 0), 0);
+  const value = cards.reduce((sum, card) => sum + (isPortfolioCard(card) ? getTrendValue(card) * getQuantity(card) : 0), 0);
   const completion = total ? Math.round((ownedEntries / total) * 100) : 0;
 
   elements.totalCount.textContent = total;
@@ -546,6 +564,44 @@ function renderStats() {
   elements.portfolioValue.textContent = `${value.toLocaleString("sk-SK")} EUR`;
   elements.completionValue.textContent = `${completion}%`;
   elements.completionBar.style.width = `${completion}%`;
+}
+
+function renderBinder() {
+  if (activeView !== "binder") return;
+
+  const binderCards = getBinderCards();
+  const pageSize = 20;
+  elements.binderCount.textContent = binderCards.length;
+  elements.binderPages.textContent = Math.max(1, Math.ceil(binderCards.length / pageSize));
+  elements.binderGrid.innerHTML = binderCards.length
+    ? binderCards.slice(0, pageSize).map(binderCardTemplate).join("")
+    : `<p class="result-message">Binder je prazdny. Pri pridavani nastav stav na Binder alebo pridaj karty do zbierky.</p>`;
+}
+
+function getBinderCards() {
+  return cards.filter(isBinderCard);
+}
+
+function isBinderCard(card) {
+  return card.status === "binder" || card.status === "owned";
+}
+
+function isPortfolioCard(card) {
+  return card.status === "owned" || card.status === "binder";
+}
+
+function binderCardTemplate(card) {
+  const image = card.image
+    ? `<img src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}" />`
+    : `<span>${escapeHtml((card.name || "?").slice(0, 2).toUpperCase())}</span>`;
+
+  return `
+    <button class="binder-slot" type="button" data-id="${escapeAttr(card.id)}">
+      <span class="binder-card-art">${image}</span>
+      <strong>${escapeHtml(card.name)}</strong>
+      <small>${escapeHtml(card.number || "-")}</small>
+    </button>
+  `;
 }
 
 function cardTemplate(card) {
@@ -573,7 +629,7 @@ function cardTemplate(card) {
         <p class="note">${escapeHtml(note)}</p>
         <div class="card-footer">
           <div>
-            <span class="value">${(getCardValue(card) * getQuantity(card)).toLocaleString("sk-SK")} EUR</span>
+            <span class="value">${(getTrendValue(card) * getQuantity(card)).toLocaleString("sk-SK")} EUR</span>
             <span class="market-move ${moveClass}">${move.label}</span>
           </div>
           <button class="edit-button" type="button" data-id="${card.id}" aria-label="Upravit ${escapeAttr(card.name)}">Edit</button>
@@ -595,6 +651,10 @@ function cardTemplate(card) {
 
 function getCardValue(card) {
   return Number(card.market?.lowPrice || card.value || 0);
+}
+
+function getTrendValue(card) {
+  return Number(card.market?.trendPrice || card.market?.avg30 || card.market?.lowPrice || card.value || 0);
 }
 
 function getQuantity(card) {
