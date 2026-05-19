@@ -137,15 +137,13 @@
         </div>
 
         <input id="cardId" type="hidden" />
+        <p class="selected-summary" id="selectedSummary">Vyber kartu z vysledkov hladania alebo dopln udaje rucne.</p>
         <div class="form-grid">
           <label>
             Pokemon / nazov karty
             <input id="nameInput" required maxlength="48" placeholder="napr. Pikachu" />
           </label>
-          <label>
-            Set
-            <input id="seriesInput" required maxlength="40" placeholder="napr. Scarlet & Violet" />
-          </label>
+          <input id="seriesInput" type="hidden" />
           <label>
             Cislo
             <input id="numberInput" maxlength="12" placeholder="napr. 025/165" />
@@ -205,6 +203,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=auto-price-only"></script>
+    <script src="app.js?v=auto-set-price"></script>
   </body>
 </html>

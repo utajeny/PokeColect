@@ -179,6 +179,7 @@ const elements = {
   form: document.querySelector("#cardForm"),
   dialogTitle: document.querySelector("#dialogTitle"),
   cardId: document.querySelector("#cardId"),
+  selectedSummary: document.querySelector("#selectedSummary"),
   name: document.querySelector("#nameInput"),
   series: document.querySelector("#seriesInput"),
   number: document.querySelector("#numberInput"),
@@ -294,6 +295,9 @@ function openEditor(card = null) {
   elements.cardId.value = card?.isDraft ? "" : card?.id ?? "";
   elements.name.value = card?.name ?? "";
   elements.series.value = card?.series ?? "";
+  elements.selectedSummary.textContent = card?.series
+    ? `${card.name || "Karta"} / ${card.series} / ${card.number || "-"}`
+    : "Vyber kartu z vysledkov hladania alebo dopln udaje rucne.";
   elements.number.value = card?.number ?? "";
   ensureRarityOption(card?.rarity);
   elements.rarityInput.value = card?.rarity ?? "Common";
