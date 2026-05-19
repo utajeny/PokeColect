@@ -10,6 +10,9 @@ const sampleCards = [
     status: "owned",
     value: 3.5,
     psa10: 0,
+    quantity: 1,
+    condition: "Near Mint",
+    finish: "Holofoil",
     note: "Elektricky typ, pekny stav.",
   },
   {
@@ -20,6 +23,9 @@ const sampleCards = [
     status: "wishlist",
     value: 32,
     psa10: 0,
+    quantity: 0,
+    condition: "Near Mint",
+    finish: "Holofoil",
     note: "Hlavna karta, ktoru chcem ziskat.",
   },
   {
@@ -30,6 +36,9 @@ const sampleCards = [
     status: "owned",
     value: 9,
     psa10: 0,
+    quantity: 1,
+    condition: "Near Mint",
+    finish: "Holofoil",
     note: "Holo verzia do albumu.",
   },
   {
@@ -40,6 +49,9 @@ const sampleCards = [
     status: "trade",
     value: 2,
     psa10: 0,
+    quantity: 1,
+    condition: "Excellent",
+    finish: "Normal",
     note: "Druhy kus, vhodny na vymenu.",
   },
   {
@@ -50,6 +62,9 @@ const sampleCards = [
     status: "owned",
     value: 6,
     psa10: 0,
+    quantity: 1,
+    condition: "Near Mint",
+    finish: "Holofoil",
     note: "Oblubeny Pokemon v zbierke.",
   },
 ];
@@ -161,6 +176,9 @@ const elements = {
   lookupCardButton: document.querySelector("#lookupCardButton"),
   rarityInput: document.querySelector("#rarityInput"),
   status: document.querySelector("#statusInput"),
+  quantity: document.querySelector("#quantityInput"),
+  condition: document.querySelector("#conditionInput"),
+  finish: document.querySelector("#finishInput"),
   value: document.querySelector("#valueInput"),
   psa10: document.querySelector("#psa10Input"),
   image: document.querySelector("#imageInput"),
@@ -172,6 +190,7 @@ const elements = {
   ownedCount: document.querySelector("#ownedCount"),
   missingCount: document.querySelector("#missingCount"),
   valueCount: document.querySelector("#valueCount"),
+  portfolioValue: document.querySelector("#portfolioValue"),
   completionValue: document.querySelector("#completionValue"),
   completionBar: document.querySelector("#completionBar"),
 };
@@ -266,6 +285,9 @@ function openEditor(card = null) {
   elements.number.value = card?.number ?? "";
   elements.rarityInput.value = card?.rarity ?? "Common";
   elements.status.value = card?.status ?? "owned";
+  elements.quantity.value = card?.quantity ?? (card?.status === "wishlist" ? 0 : 1);
+  elements.condition.value = card?.condition ?? "Near Mint";
+  elements.finish.value = card?.finish ?? defaultFinish(card?.rarity);
   elements.value.value = getCardValue(card ?? {}) || "";
   elements.psa10.value = card?.psa10 || "";
   elements.image.value = card?.image ?? "";
@@ -288,6 +310,9 @@ function saveFromForm() {
     number: elements.number.value.trim(),
     rarity: elements.rarityInput.value,
     status: elements.status.value,
+    quantity: clampNumber(Number(elements.quantity.value || 0), 0, 999),
+    condition: elements.condition.value,
+    finish: elements.finish.value,
     value: Number(elements.value.value || existing?.value || 0),
     psa10: clampNumber(Number(elements.psa10.value || 0), 0, 10),
     image: elements.image.value.trim(),
@@ -338,15 +363,19 @@ function getVisibleCards() {
 
 function renderStats() {
   const total = cards.length;
-  const owned = cards.filter((card) => card.status === "owned").length;
+  const ownedEntries = cards.filter((card) => card.status === "owned").length;
+  const owned = cards
+    .filter((card) => card.status === "owned")
+    .reduce((sum, card) => sum + getQuantity(card), 0);
   const missing = cards.filter((card) => card.status === "wishlist").length;
-  const value = cards.reduce((sum, card) => sum + (card.status === "owned" ? getCardValue(card) : 0), 0);
-  const completion = total ? Math.round((owned / total) * 100) : 0;
+  const value = cards.reduce((sum, card) => sum + (card.status === "owned" ? getCardValue(card) * getQuantity(card) : 0), 0);
+  const completion = total ? Math.round((ownedEntries / total) * 100) : 0;
 
   elements.totalCount.textContent = total;
   elements.ownedCount.textContent = owned;
   elements.missingCount.textContent = missing;
   elements.valueCount.textContent = `${value.toLocaleString("sk-SK")} EUR`;
+  elements.portfolioValue.textContent = `${value.toLocaleString("sk-SK")} EUR`;
   elements.completionValue.textContent = `${completion}%`;
   elements.completionBar.style.width = `${completion}%`;
 }
@@ -355,6 +384,8 @@ function cardTemplate(card) {
   const palette = rarityPalette[card.rarity] ?? rarityPalette.Common;
   const note = card.note || "Bez poznamky.";
   const number = card.number || "-";
+  const move = marketMove(card);
+  const moveClass = move.value >= 0 ? "positive" : "negative";
   const image = card.image
     ? `<img src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}" onerror="this.remove()" />`
     : `<div class="card-symbol" aria-hidden="true">${palette[2]}</div>`;
@@ -368,15 +399,18 @@ function cardTemplate(card) {
       </div>
       <div class="card-body">
         <h3>${escapeHtml(card.name)}</h3>
-        <div class="meta">
-          <span>${escapeHtml(card.series)}</span>
-          <span>${escapeHtml(number)}</span>
-        </div>
+        <p class="card-set">${escapeHtml(card.series)}</p>
+        <p class="card-line">${escapeHtml(card.rarity)} / ${escapeHtml(number)}</p>
+        <p class="card-line"><strong>${escapeHtml(card.condition ?? "Near Mint")}</strong> / ${escapeHtml(card.finish ?? defaultFinish(card.rarity))}</p>
         <p class="note">${escapeHtml(note)}</p>
         <div class="card-footer">
-          <span class="value">${getCardValue(card).toLocaleString("sk-SK")} EUR</span>
+          <div>
+            <span class="value">${(getCardValue(card) * getQuantity(card)).toLocaleString("sk-SK")} EUR</span>
+            <span class="market-move ${moveClass}">${move.label}</span>
+          </div>
           <button class="edit-button" type="button" data-id="${card.id}" aria-label="Upravit ${escapeAttr(card.name)}">Edit</button>
         </div>
+        <p class="qty-line">Qty: ${getQuantity(card)}</p>
         <div class="market-row">
           <span>CM low: <strong>${formatPrice(card.market?.lowPrice)}</strong></span>
           <span>Trend: <strong>${formatPrice(card.market?.trendPrice)}</strong></span>
@@ -393,6 +427,30 @@ function cardTemplate(card) {
 
 function getCardValue(card) {
   return Number(card.market?.lowPrice || card.value || 0);
+}
+
+function getQuantity(card) {
+  return Math.max(0, Number(card.quantity ?? (card.status === "wishlist" ? 0 : 1)));
+}
+
+function defaultFinish(rarity) {
+  if (String(rarity || "").includes("Reverse")) return rarity;
+  if (String(rarity || "").includes("Holo") || String(rarity || "").includes("Rare")) return "Holofoil";
+  return "Normal";
+}
+
+function marketMove(card) {
+  const low = Number(card.market?.lowPrice || 0);
+  const trend = Number(card.market?.trendPrice || 0);
+  if (!low || !trend) return { value: 0, label: "+ 0 EUR (0%)" };
+
+  const diff = trend - low;
+  const percent = low ? (diff / low) * 100 : 0;
+  const sign = diff >= 0 ? "+" : "-";
+  return {
+    value: diff,
+    label: `${sign} ${Math.abs(diff).toLocaleString("sk-SK", { maximumFractionDigits: 2 })} EUR (${Math.abs(percent).toFixed(2)}%)`,
+  };
 }
 
 function marketFromFormValue() {

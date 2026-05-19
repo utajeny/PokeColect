@@ -51,8 +51,8 @@
       <main class="main-panel">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Prehlad</p>
-            <h2>Moje Pokemon karty</h2>
+            <p class="eyebrow">Portfolio</p>
+            <h2>Main</h2>
           </div>
           <div class="topbar-actions">
             <button class="ghost-button" id="seedButton" type="button" title="Pridat ukazkove Pokemon karty">Ukazky</button>
@@ -60,6 +60,17 @@
             <button class="primary-button" id="openFormButton" type="button">Pridat kartu</button>
           </div>
         </header>
+
+        <section class="portfolio-hero" aria-label="Portfolio hodnota">
+          <p>Portfolio: <strong>Main</strong></p>
+          <div class="portfolio-value" id="portfolioValue">0 EUR</div>
+          <div class="portfolio-actions" aria-label="Portfolio akcie">
+            <button type="button" title="Market movers">Trend</button>
+            <button type="button" title="Trade analyzer">Trade</button>
+            <button type="button" title="Bulk actions">Bulk</button>
+            <button type="button" title="Export">Export</button>
+          </div>
+        </section>
 
         <section class="stats-grid" aria-label="Statistiky">
           <article>
@@ -148,6 +159,31 @@
             </select>
           </label>
           <label>
+            Qty
+            <input id="quantityInput" type="number" min="0" step="1" placeholder="1" />
+          </label>
+          <label>
+            Condition
+            <select id="conditionInput">
+              <option>Near Mint</option>
+              <option>Excellent</option>
+              <option>Good</option>
+              <option>Light Played</option>
+              <option>Played</option>
+              <option>Poor</option>
+            </select>
+          </label>
+          <label>
+            Finish
+            <select id="finishInput">
+              <option>Holofoil</option>
+              <option>Normal</option>
+              <option>Reverse Holo</option>
+              <option>Master Ball Reverse Holo</option>
+              <option>Poke Ball Reverse Holo</option>
+            </select>
+          </label>
+          <label>
             Hodnota v EUR
             <input id="valueInput" type="number" min="0" step="0.01" placeholder="Automaticky z CM low" readonly />
           </label>
@@ -174,6 +210,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=stable-autofill"></script>
+    <script src="app.js?v=collectr-ui"></script>
   </body>
 </html>
