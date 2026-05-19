@@ -1,5 +1,6 @@
 const STORAGE_KEY = "pokemon-card-collector-v1";
 const BINDER_KEY = "pokemon-card-binder-marks-v1";
+const BINDER_IMPORTS_KEY = "pokemon-card-binder-imports-v1";
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
 const SETS_API_BASE = "https://api.tcgdex.net/v2/en/sets";
 const TCGDEX_CARD_API = "https://api.tcgdex.net/v2/en/cards";
@@ -190,6 +191,7 @@ const statusLabels = {
 
 let cards = loadCards();
 let binderMarks = loadBinderMarks();
+let binderImports = loadBinderImports();
 let activeView = "all";
 let editorMarket = null;
 let autofillTimer = null;
@@ -213,11 +215,16 @@ const elements = {
   binderCount: document.querySelector("#binderCount"),
   binderOwnedCount: document.querySelector("#binderOwnedCount"),
   binderProgress: document.querySelector("#binderProgress"),
+  binderSource: document.querySelector("#binderSource"),
   binderPages: document.querySelector("#binderPages"),
   binderPrevButton: document.querySelector("#binderPrevButton"),
   binderNextButton: document.querySelector("#binderNextButton"),
   binderPageLabel: document.querySelector("#binderPageLabel"),
   binderBreakdown: document.querySelector("#binderBreakdown"),
+  binderImportName: document.querySelector("#binderImportName"),
+  binderImportInput: document.querySelector("#binderImportInput"),
+  binderImportButton: document.querySelector("#binderImportButton"),
+  binderImportStatus: document.querySelector("#binderImportStatus"),
   search: document.querySelector("#searchInput"),
   rarity: document.querySelector("#rarityFilter"),
   sort: document.querySelector("#sortSelect"),
@@ -292,6 +299,7 @@ elements.binderNextButton.addEventListener("click", () => {
   binderPage = Math.min(pages, binderPage + 1);
   renderBinder();
 });
+elements.binderImportButton.addEventListener("click", importBinderList);
 
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -338,8 +346,21 @@ function persistBinderMarks() {
   localStorage.setItem(BINDER_KEY, JSON.stringify(binderMarks));
 }
 
+function loadBinderImports() {
+  try {
+    return JSON.parse(localStorage.getItem(BINDER_IMPORTS_KEY)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function persistBinderImports() {
+  localStorage.setItem(BINDER_IMPORTS_KEY, JSON.stringify(binderImports));
+}
+
 async function populateBinderSets() {
-  const merged = mergeBinderSets(defaultBinderSets, cardsToBinderSets(cards));
+  const importedSets = binderImports.map((set) => ({ ...set, imported: true }));
+  const merged = mergeBinderSets(importedSets, defaultBinderSets, cardsToBinderSets(cards));
   renderBinderSetOptions(merged);
 
   try {
@@ -356,7 +377,7 @@ async function populateBinderSets() {
         apiId: tcgdexToPokemonApiSetId(set.id),
         cardCount: set.cardCount,
       }));
-    renderBinderSetOptions(mergeBinderSets(remoteSets, merged));
+    renderBinderSetOptions(mergeBinderSets(importedSets, remoteSets, merged));
   } catch {
     renderBinderSetOptions(merged);
   }
@@ -393,6 +414,83 @@ function renderBinderSetOptions(sets) {
     .map((set) => `<option value="${escapeAttr(set.id)}">${escapeHtml(set.name)}</option>`)
     .join("");
   elements.binderSetSelect.value = binderSetId;
+}
+
+function importBinderList() {
+  const raw = elements.binderImportInput.value.trim();
+  if (!raw) {
+    elements.binderImportStatus.textContent = "Najprv vloz skopirovany zoznam.";
+    return;
+  }
+
+  const entries = parseBinderImport(raw);
+  if (!entries.length) {
+    elements.binderImportStatus.textContent = "Nenasiel som karty. Skus format: 001 Bulbasaur normal.";
+    return;
+  }
+
+  const id = `import-${Date.now()}`;
+  const name = elements.binderImportName.value.trim() || `Imported binder ${new Date().toLocaleDateString("sk-SK")}`;
+  binderImports = [{ id, name, imported: true, entries }, ...binderImports.filter((set) => set.name !== name)].slice(0, 12);
+  persistBinderImports();
+  binderSetId = id;
+  binderPage = 1;
+  elements.binderImportStatus.textContent = `Importovane: ${entries.length} slotov.`;
+  populateBinderSets();
+  loadBinderSet();
+}
+
+function parseBinderImport(raw) {
+  const byKey = new Map();
+  raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => parseBinderImportLine(line).forEach((entry) => byKey.set(`${entry.number}-${entry.variant.key}-${entry.name}`, entry)));
+  return [...byKey.values()].sort((a, b) => normalizeCardNumber(a.number).localeCompare(normalizeCardNumber(b.number), undefined, { numeric: true }));
+}
+
+function parseBinderImportLine(line) {
+  const entries = [];
+  const idMatches = [...line.matchAll(/([a-z0-9.]+)-(\d{1,4}[a-z]?)-(normal|reverse|holo|holofoil|masterball|master-ball|pokeball|poke-ball)/gi)];
+  idMatches.forEach((match) => {
+    entries.push({
+      id: match[0],
+      number: match[2],
+      name: compactCardName(line.replace(match[0], "")) || `Card ${match[2]}`,
+      variant: importVariantFromText(match[3]),
+    });
+  });
+  if (entries.length) return entries;
+
+  const textMatch = line.match(/#?\s*(\d{1,4}[a-z]?)\s+(.+?)(?:\s+[-/]\s+|\s+)(normal|holofoil|holo|reverse holo|reverse|master ball|poke ball|pokeball|masterball|mb|pb)$/i);
+  if (!textMatch) return [];
+  return [
+    {
+      id: `${textMatch[1]}-${textMatch[3]}`,
+      number: textMatch[1],
+      name: compactCardName(textMatch[2]),
+      variant: importVariantFromText(textMatch[3]),
+    },
+  ];
+}
+
+function compactCardName(value) {
+  return String(value || "")
+    .replace(/\b(normal|holofoil|holo|reverse holo|reverse|master ball|poke ball|pokeball|masterball|mb|pb)\b/gi, "")
+    .replace(/[^\w .:'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+}
+
+function importVariantFromText(value) {
+  const text = String(value || "").toLowerCase().replace(/[\s-]+/g, "");
+  if (text === "mb" || text.includes("masterball")) return { key: "masterBallReverseHolo", label: "Master Ball Reverse Holo", short: "MB" };
+  if (text === "pb" || text.includes("pokeball")) return { key: "pokeBallReverseHolo", label: "Poke Ball Reverse Holo", short: "PB" };
+  if (text.includes("reverse")) return { key: "reverseHolofoil", label: "Reverse Holofoil", short: "RH" };
+  if (text.includes("holo")) return { key: "holofoil", label: "Holofoil", short: "Holo" };
+  return { key: "normal", label: "Normal", short: "Normal" };
 }
 
 function pokemonApiToTcgdexSetId(setId) {
@@ -782,6 +880,7 @@ function renderBinder() {
   elements.binderCount.textContent = binderCards.length;
   elements.binderOwnedCount.textContent = owned;
   elements.binderProgress.textContent = `${binderCards.length ? Math.round((owned / binderCards.length) * 100) : 0}%`;
+  elements.binderSource.textContent = binderImports.some((set) => set.id === binderSetId) ? "imported list" : "TCGdex variants";
   elements.binderPages.textContent = pages;
   elements.binderPageLabel.textContent = `${binderPage} / ${pages}`;
   elements.binderPrevButton.disabled = binderPage <= 1;
@@ -800,6 +899,13 @@ async function loadBinderSet() {
   if (activeView !== "binder") return;
   binderCards = [];
   elements.binderBreakdown.innerHTML = "";
+  const importedSet = binderImports.find((set) => set.id === binderSetId);
+  if (importedSet) {
+    binderCards = buildImportedBinderEntries(importedSet);
+    renderBinder();
+    return;
+  }
+
   elements.binderGrid.innerHTML = `<p class="result-message">Nacitavam master set z TCGdex...</p>`;
   try {
     const apiCards = await fetchBinderCards(binderSetId);
@@ -813,6 +919,29 @@ async function loadBinderSet() {
     }
   }
   renderBinder();
+}
+
+function buildImportedBinderEntries(importedSet) {
+  return importedSet.entries.map((entry, index) => {
+    const number = entry.number || String(index + 1);
+    return {
+      id: `${importedSet.id}::${number}::${entry.variant.key}::${index}`,
+      apiId: entry.id,
+      markKey: `${number}::${entry.variant.key}`,
+      legacyKey: number,
+      variantIndex: index,
+      variant: entry.variant,
+      card: {
+        id: entry.id,
+        name: entry.name || `Card ${number}`,
+        number,
+        rarity: "Imported",
+        set: { id: importedSet.id, name: importedSet.name },
+        images: entry.image ? { small: entry.image, large: entry.image } : {},
+        source: "import",
+      },
+    };
+  });
 }
 
 async function fetchBinderCards(setId) {

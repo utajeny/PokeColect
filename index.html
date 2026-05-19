@@ -131,13 +131,26 @@
             <div>
               <h3>Binder</h3>
               <p><span id="binderOwnedCount">0</span> owned / <span id="binderCount">0</span> master slots / <span id="binderPages">0</span> pages</p>
-              <p class="binder-progress-line"><span id="binderProgress">0%</span> complete / data: TCGdex variants</p>
+              <p class="binder-progress-line"><span id="binderProgress">0%</span> complete / data: <span id="binderSource">TCGdex variants</span></p>
             </div>
             <select id="binderSetSelect" aria-label="Vybrat set do binderu"></select>
             <div class="binder-toggle" aria-label="Binder layout">
               <button class="active" type="button">Single</button>
               <button type="button">Spread</button>
             </div>
+            <details class="binder-import">
+              <summary>Import binder list</summary>
+              <label>
+                Nazov
+                <input id="binderImportName" type="text" placeholder="Moj master set" />
+              </label>
+              <label>
+                Vloz skopirovany zoznam
+                <textarea id="binderImportInput" rows="6" placeholder="001 Bulbasaur normal&#10;001 Bulbasaur reverse&#10;003 Venusaur ex holo"></textarea>
+              </label>
+              <button class="primary-button" id="binderImportButton" type="button">Importovat</button>
+              <p id="binderImportStatus"></p>
+            </details>
           </div>
           <div class="binder-breakdown" id="binderBreakdown"></div>
           <div class="binder-grid" id="binderGrid"></div>
@@ -235,6 +248,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=tcgdex-master-set"></script>
+    <script src="app.js?v=binder-import-list"></script>
   </body>
 </html>
