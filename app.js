@@ -6,7 +6,7 @@ const API_BASE = "https://api.pokemontcg.io/v2/cards";
 const SETS_API_BASE = "https://api.tcgdex.net/v2/en/sets";
 const TCGDEX_CARD_API = "https://api.tcgdex.net/v2/en/cards";
 
-const stampedGrandmasterPresets = {
+const grandmasterVariantPresets = {
   me02: [
     { number: "P01", name: "Toxtricity", stamp: "Build & Battle Stamp" },
     { number: "P02", name: "Ceruledge", stamp: "Build & Battle Stamp" },
@@ -26,6 +26,7 @@ const stampedGrandmasterPresets = {
     { number: "P16", name: "Whimsicott", stamp: "Promo" },
     { number: "P17", name: "Dawn", stamp: "STAFF Stamp" },
     { number: "P18", name: "Phantasmal Flames", stamp: "Retail Stamp" },
+    { number: "P19", name: "Suicune", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
   ],
 };
 
@@ -504,9 +505,9 @@ function applyBinderTargetCount() {
 }
 
 function applyStampedGrandmasterPreset() {
-  const preset = stampedGrandmasterPresets[binderSetId] || [];
+  const preset = grandmasterVariantPresets[binderSetId] || [];
   if (!preset.length) {
-    elements.binderTargetStatus.textContent = "Pre tento set este nemam stamped preset.";
+    elements.binderTargetStatus.textContent = "Pre tento set este nemam stamped/cosmos preset.";
     return;
   }
 
@@ -515,22 +516,23 @@ function applyStampedGrandmasterPreset() {
   const nextExtras = [
     ...existing,
     ...preset
-      .map((entry) => stampedExtraEntry(entry))
+      .map((entry) => grandmasterPresetEntry(entry))
       .filter((entry) => !existingKeys.has(`${entry.number}-${entry.name}-${entry.variant.label}`)),
   ];
 
   binderExtras[binderSetId] = nextExtras;
   persistBinderExtras();
-  elements.binderTargetStatus.textContent = `Pridane stamped sloty: ${nextExtras.length - existing.length}.`;
+  elements.binderTargetStatus.textContent = `Pridane stamped/cosmos sloty: ${nextExtras.length - existing.length}.`;
   loadBinderSet();
 }
 
-function stampedExtraEntry(entry) {
+function grandmasterPresetEntry(entry) {
+  const variant = entry.variant || { key: "stamped", label: entry.stamp, short: "Stamp" };
   return {
-    id: `${binderSetId}-${entry.number}-${entry.stamp}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    id: `${binderSetId}-${entry.number}-${variant.label}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     number: entry.number,
     name: entry.name,
-    variant: { key: "stamped", label: entry.stamp, short: "Stamp" },
+    variant,
   };
 }
 
@@ -991,7 +993,7 @@ function renderBinder() {
 
 function binderDataSourceLabel() {
   if (binderImports.some((set) => set.id === binderSetId)) return "imported list";
-  if ((binderExtras[binderSetId] || []).length) return "TCGdex + stamped extras";
+  if ((binderExtras[binderSetId] || []).length) return "TCGdex + stamped/cosmos extras";
   return "TCGdex variants";
 }
 
