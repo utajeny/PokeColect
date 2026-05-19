@@ -151,6 +151,15 @@
               <button class="primary-button" id="binderImportButton" type="button">Importovat</button>
               <p id="binderImportStatus"></p>
             </details>
+            <details class="binder-import">
+              <summary>Grandmaster extras</summary>
+              <label>
+                Cielovy pocet slotov
+                <input id="binderTargetCount" type="number" min="1" placeholder="napr. 241" />
+              </label>
+              <button class="primary-button" id="binderTargetButton" type="button">Doplnit extra sloty</button>
+              <p id="binderTargetStatus"></p>
+            </details>
           </div>
           <div class="binder-breakdown" id="binderBreakdown"></div>
           <div class="binder-grid" id="binderGrid"></div>
@@ -248,6 +257,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=binder-import-list"></script>
+    <script src="app.js?v=grandmaster-extras"></script>
   </body>
 </html>

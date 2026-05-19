@@ -1,6 +1,7 @@
 const STORAGE_KEY = "pokemon-card-collector-v1";
 const BINDER_KEY = "pokemon-card-binder-marks-v1";
 const BINDER_IMPORTS_KEY = "pokemon-card-binder-imports-v1";
+const BINDER_EXTRAS_KEY = "pokemon-card-binder-extras-v1";
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
 const SETS_API_BASE = "https://api.tcgdex.net/v2/en/sets";
 const TCGDEX_CARD_API = "https://api.tcgdex.net/v2/en/cards";
@@ -192,6 +193,7 @@ const statusLabels = {
 let cards = loadCards();
 let binderMarks = loadBinderMarks();
 let binderImports = loadBinderImports();
+let binderExtras = loadBinderExtras();
 let activeView = "all";
 let editorMarket = null;
 let autofillTimer = null;
@@ -225,6 +227,9 @@ const elements = {
   binderImportInput: document.querySelector("#binderImportInput"),
   binderImportButton: document.querySelector("#binderImportButton"),
   binderImportStatus: document.querySelector("#binderImportStatus"),
+  binderTargetCount: document.querySelector("#binderTargetCount"),
+  binderTargetButton: document.querySelector("#binderTargetButton"),
+  binderTargetStatus: document.querySelector("#binderTargetStatus"),
   search: document.querySelector("#searchInput"),
   rarity: document.querySelector("#rarityFilter"),
   sort: document.querySelector("#sortSelect"),
@@ -300,6 +305,7 @@ elements.binderNextButton.addEventListener("click", () => {
   renderBinder();
 });
 elements.binderImportButton.addEventListener("click", importBinderList);
+elements.binderTargetButton.addEventListener("click", applyBinderTargetCount);
 
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -356,6 +362,18 @@ function loadBinderImports() {
 
 function persistBinderImports() {
   localStorage.setItem(BINDER_IMPORTS_KEY, JSON.stringify(binderImports));
+}
+
+function loadBinderExtras() {
+  try {
+    return JSON.parse(localStorage.getItem(BINDER_EXTRAS_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function persistBinderExtras() {
+  localStorage.setItem(BINDER_EXTRAS_KEY, JSON.stringify(binderExtras));
 }
 
 async function populateBinderSets() {
@@ -437,6 +455,26 @@ function importBinderList() {
   binderPage = 1;
   elements.binderImportStatus.textContent = `Importovane: ${entries.length} slotov.`;
   populateBinderSets();
+  loadBinderSet();
+}
+
+function applyBinderTargetCount() {
+  const target = Number(elements.binderTargetCount.value || 0);
+  if (!target || target <= binderCards.length) {
+    elements.binderTargetStatus.textContent = `Zadaj cislo vacsie ako aktualnych ${binderCards.length} slotov.`;
+    return;
+  }
+
+  const selectedSet = binderSets.find((set) => set.id === binderSetId);
+  const count = target - binderCards.length;
+  binderExtras[binderSetId] = Array.from({ length: count }, (_, index) => ({
+    id: `${binderSetId}-extra-${index + 1}`,
+    number: `EX${String(index + 1).padStart(2, "0")}`,
+    name: `${selectedSet?.name || "Set"} extra ${index + 1}`,
+    variant: { key: "grandmasterExtra", label: "Grandmaster Extra", short: "Extra" },
+  }));
+  persistBinderExtras();
+  elements.binderTargetStatus.textContent = `Doplnene na ${target} slotov.`;
   loadBinderSet();
 }
 
@@ -909,16 +947,42 @@ async function loadBinderSet() {
   elements.binderGrid.innerHTML = `<p class="result-message">Nacitavam master set z TCGdex...</p>`;
   try {
     const apiCards = await fetchBinderCards(binderSetId);
-    binderCards = buildMasterBinderEntries(apiCards);
+    binderCards = withBinderExtras(buildMasterBinderEntries(apiCards));
   } catch {
     try {
       const fallbackCards = await fetchPokemonApiBinderCards(tcgdexToPokemonApiSetId(binderSetId));
-      binderCards = buildMasterBinderEntries(fallbackCards);
+      binderCards = withBinderExtras(buildMasterBinderEntries(fallbackCards));
     } catch {
       binderCards = [];
     }
   }
   renderBinder();
+}
+
+function withBinderExtras(entries) {
+  const extras = binderExtras[binderSetId] || [];
+  if (!extras.length) return entries;
+  const selectedSet = binderSets.find((set) => set.id === binderSetId);
+  return [
+    ...entries,
+    ...extras.map((extra, index) => ({
+      id: `${binderSetId}::extra::${index}`,
+      apiId: extra.id,
+      markKey: `${extra.number}::${extra.variant.key}`,
+      legacyKey: extra.number,
+      variantIndex: index,
+      variant: extra.variant,
+      card: {
+        id: extra.id,
+        name: extra.name,
+        number: extra.number,
+        rarity: "Grandmaster",
+        set: { id: binderSetId, name: selectedSet?.name || binderSetId },
+        images: {},
+        source: "extra",
+      },
+    })),
+  ];
 }
 
 function buildImportedBinderEntries(importedSet) {
