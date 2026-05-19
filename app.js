@@ -158,6 +158,7 @@ const elements = {
   name: document.querySelector("#nameInput"),
   series: document.querySelector("#seriesInput"),
   number: document.querySelector("#numberInput"),
+  lookupCardButton: document.querySelector("#lookupCardButton"),
   rarityInput: document.querySelector("#rarityInput"),
   status: document.querySelector("#statusInput"),
   value: document.querySelector("#valueInput"),
@@ -196,6 +197,7 @@ elements.sort.addEventListener("change", render);
 elements.number.addEventListener("input", scheduleCardAutofill);
 elements.number.addEventListener("change", () => autofillCardByNumber({ force: true }));
 elements.number.addEventListener("blur", () => autofillCardByNumber({ force: true }));
+elements.lookupCardButton.addEventListener("click", () => autofillCardByNumber({ force: true, allowPartial: true }));
 elements.psa10.addEventListener("input", clampPsaGrade);
 
 elements.form.addEventListener("submit", (event) => {
@@ -470,7 +472,7 @@ function scheduleCardAutofill() {
   autofillTimer = setTimeout(() => autofillCardByNumber(), 550);
 }
 
-async function autofillCardByNumber({ force = false } = {}) {
+async function autofillCardByNumber({ force = false, allowPartial = false } = {}) {
   const number = elements.number.value.trim();
   if (!number) return;
 
@@ -480,13 +482,14 @@ async function autofillCardByNumber({ force = false } = {}) {
   const typedSet = elements.series.value.trim();
   const parsedNumber = parseCardNumber(number);
   if (!parsedNumber.number) return;
+  if (!allowPartial && !parsedNumber.total) return;
 
   const autofillKey = `${parsedNumber.number}|${parsedNumber.total}|${typedName}|${typedSet}`;
   if (!force && autofillKey === lastAutofillKey) return;
   lastAutofillKey = autofillKey;
 
   elements.number.dataset.loading = "true";
-  elements.number.title = "Hladam kartu...";
+  elements.number.title = "Hladam kartu podla cisla...";
 
   try {
     const match = await findCardMatch(parsedNumber, typedName, typedSet);
@@ -494,7 +497,7 @@ async function autofillCardByNumber({ force = false } = {}) {
 
     const prices = match.cardmarket?.prices;
     elements.name.value = elements.name.value.trim() || match.name || "";
-    elements.series.value = match.set?.name || elements.series.value;
+    elements.series.value = elements.series.value.trim() || match.set?.name || "";
     elements.number.value = match.number || number;
     elements.rarityInput.value = normalizeRarity(match.rarity);
     elements.image.value = match.images?.small || elements.image.value;

@@ -35,6 +35,21 @@ textarea {
   font: inherit;
 }
 
+.lookup-button {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.lookup-button:hover {
+  border-color: var(--accent);
+  background: #f5f8ff;
+}
+
 button {
   cursor: pointer;
 }
