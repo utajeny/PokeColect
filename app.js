@@ -532,6 +532,7 @@ function grandmasterPresetEntry(entry) {
     id: `${binderSetId}-${entry.number}-${variant.label}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     number: entry.number,
     name: entry.name,
+    image: entry.image || "",
     variant,
   };
 }
@@ -1027,26 +1028,45 @@ function withBinderExtras(entries) {
   const extras = binderExtras[binderSetId] || [];
   if (!extras.length) return entries;
   const selectedSet = binderSets.find((set) => set.id === binderSetId);
+  const imagesByName = entries.reduce((map, entry) => {
+    const nameKey = normalizedBinderName(entry.card?.name);
+    if (nameKey && entry.card?.images?.small && !map.has(nameKey)) {
+      map.set(nameKey, entry.card.images);
+    }
+    return map;
+  }, new Map());
   return [
     ...entries,
-    ...extras.map((extra, index) => ({
-      id: `${binderSetId}::extra::${index}`,
-      apiId: extra.id,
-      markKey: `${extra.number}::${extra.variant.key}`,
-      legacyKey: extra.number,
-      variantIndex: index,
-      variant: extra.variant,
-      card: {
-        id: extra.id,
-        name: extra.name,
-        number: extra.number,
-        rarity: "Grandmaster",
-        set: { id: binderSetId, name: selectedSet?.name || binderSetId },
-        images: {},
-        source: "extra",
-      },
-    })),
+    ...extras.map((extra, index) => {
+      const matchedImages = extra.image
+        ? { small: extra.image, large: extra.image }
+        : imagesByName.get(normalizedBinderName(extra.name)) || {};
+      return {
+        id: `${binderSetId}::extra::${index}`,
+        apiId: extra.id,
+        markKey: `${extra.number}::${extra.variant.key}`,
+        legacyKey: extra.number,
+        variantIndex: index,
+        variant: extra.variant,
+        card: {
+          id: extra.id,
+          name: extra.name,
+          number: extra.number,
+          rarity: "Grandmaster",
+          set: { id: binderSetId, name: selectedSet?.name || binderSetId },
+          images: matchedImages,
+          source: "extra",
+        },
+      };
+    }),
   ];
+}
+
+function normalizedBinderName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function buildImportedBinderEntries(importedSet) {
