@@ -70,6 +70,7 @@ const statusLabels = {
 
 let cards = loadCards();
 let activeView = "all";
+let editorMarket = null;
 
 const elements = {
   grid: document.querySelector("#cardsGrid"),
@@ -164,6 +165,7 @@ function addSamples() {
 
 function openEditor(card = null) {
   elements.form.reset();
+  editorMarket = card?.market ?? null;
   elements.deleteButton.classList.toggle("hidden", !card);
   elements.dialogTitle.textContent = card ? "Upravit Pokemon kartu" : "Pridat Pokemon kartu";
   elements.cardId.value = card?.id ?? "";
@@ -172,7 +174,7 @@ function openEditor(card = null) {
   elements.number.value = card?.number ?? "";
   elements.rarityInput.value = card?.rarity ?? "Common";
   elements.status.value = card?.status ?? "owned";
-  elements.value.value = card?.value ?? "";
+  elements.value.value = getCardValue(card ?? {}) || "";
   elements.psa10.value = card?.psa10 || "";
   elements.image.value = card?.image ?? "";
   elements.note.value = card?.note ?? "";
@@ -194,11 +196,11 @@ function saveFromForm() {
     number: elements.number.value.trim(),
     rarity: elements.rarityInput.value,
     status: elements.status.value,
-    value: Number(elements.value.value || 0),
+    value: Number(elements.value.value || existing?.value || 0),
     psa10: clampNumber(Number(elements.psa10.value || 0), 0, 10),
     image: elements.image.value.trim(),
     note: elements.note.value.trim(),
-    market: existing?.market ?? null,
+    market: editorMarket ?? existing?.market ?? marketFromFormValue(),
     createdAt: existing?.createdAt ?? Date.now(),
   };
 
@@ -206,6 +208,7 @@ function saveFromForm() {
   persist();
   closeEditor();
   render();
+  editorMarket = null;
 }
 
 function render() {
@@ -300,6 +303,20 @@ function getCardValue(card) {
   return Number(card.market?.lowPrice || card.value || 0);
 }
 
+function marketFromFormValue() {
+  const value = Number(elements.value.value || 0);
+  if (!value) return null;
+  return {
+    lowPrice: value,
+    trendPrice: 0,
+    avg1: 0,
+    avg7: 0,
+    avg30: 0,
+    updatedAt: "manual",
+    checkedAt: Date.now(),
+  };
+}
+
 function formatPrice(value) {
   const number = Number(value || 0);
   return number ? `${number.toLocaleString("sk-SK")} EUR` : "-";
@@ -386,12 +403,13 @@ async function autofillCardByNumber() {
     elements.rarityInput.value = normalizeRarity(match.rarity);
     elements.image.value = match.images?.small || elements.image.value;
 
-    if (prices?.lowPrice && !elements.value.value) {
+    if (prices?.lowPrice) {
       elements.value.value = prices.lowPrice;
+      editorMarket = marketFromApiCard(match);
     }
 
     if (existing) {
-      existing.market = prices ? marketFromApiCard(match) : existing.market;
+      existing.market = editorMarket ?? existing.market;
     }
   } finally {
     elements.number.dataset.loading = "false";
