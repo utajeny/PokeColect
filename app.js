@@ -159,10 +159,15 @@ let activeView = "all";
 let editorMarket = null;
 let autofillTimer = null;
 let lastAutofillKey = "";
+let searchTimer = null;
+let lastRemoteSearch = "";
 
 const elements = {
   grid: document.querySelector("#cardsGrid"),
   emptyState: document.querySelector("#emptyState"),
+  searchResults: document.querySelector("#searchResults"),
+  resultGrid: document.querySelector("#resultGrid"),
+  clearResultsButton: document.querySelector("#clearResultsButton"),
   search: document.querySelector("#searchInput"),
   rarity: document.querySelector("#rarityFilter"),
   sort: document.querySelector("#sortSelect"),
@@ -210,7 +215,11 @@ document.querySelectorAll(".nav-tab").forEach((button) => {
   });
 });
 
-elements.search.addEventListener("input", render);
+elements.search.addEventListener("input", () => {
+  render();
+  scheduleRemoteSearch();
+});
+elements.clearResultsButton.addEventListener("click", clearRemoteResults);
 elements.rarity.addEventListener("change", render);
 elements.sort.addEventListener("change", render);
 elements.number.addEventListener("input", scheduleCardAutofill);
@@ -277,9 +286,9 @@ function addSamples() {
 function openEditor(card = null) {
   elements.form.reset();
   editorMarket = card?.market ?? null;
-  elements.deleteButton.classList.toggle("hidden", !card);
-  elements.dialogTitle.textContent = card ? "Upravit Pokemon kartu" : "Pridat Pokemon kartu";
-  elements.cardId.value = card?.id ?? "";
+  elements.deleteButton.classList.toggle("hidden", !card || card.isDraft);
+  elements.dialogTitle.textContent = card && !card.isDraft ? "Upravit Pokemon kartu" : "Pridat Pokemon kartu";
+  elements.cardId.value = card?.isDraft ? "" : card?.id ?? "";
   elements.name.value = card?.name ?? "";
   elements.series.value = card?.series ?? "";
   elements.number.value = card?.number ?? "";
@@ -340,6 +349,126 @@ function render() {
       openEditor(card);
     });
   });
+}
+
+function scheduleRemoteSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runRemoteSearch, 450);
+}
+
+async function runRemoteSearch() {
+  const query = elements.search.value.trim();
+  if (query.length < 2) {
+    clearRemoteResults();
+    return;
+  }
+
+  if (query === lastRemoteSearch) return;
+  lastRemoteSearch = query;
+
+  elements.searchResults.classList.remove("hidden");
+  elements.resultGrid.innerHTML = `<p class="result-message">Hladam moznosti...</p>`;
+
+  const results = await searchCards(query);
+  if (!results.length) {
+    elements.resultGrid.innerHTML = `<p class="result-message">Nenasiel som ziadne karty. Skus nazov, set alebo cele cislo.</p>`;
+    return;
+  }
+
+  elements.resultGrid.innerHTML = results.map(resultTemplate).join("");
+  elements.resultGrid.querySelectorAll(".result-card").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = results.find((item) => item.id === button.dataset.id);
+      if (card) openEditor(cardFromApi(card));
+    });
+  });
+}
+
+function clearRemoteResults() {
+  elements.searchResults.classList.add("hidden");
+  elements.resultGrid.innerHTML = "";
+  lastRemoteSearch = "";
+}
+
+async function searchCards(query) {
+  try {
+    const queries = buildSearchQueries(query);
+    const seen = new Set();
+    const found = [];
+
+    for (const apiQuery of queries) {
+      const response = await fetch(`${API_BASE}?q=${encodeURIComponent(apiQuery)}&pageSize=12`);
+      if (!response.ok) continue;
+      const payload = await response.json();
+      for (const card of payload.data ?? []) {
+        if (seen.has(card.id)) continue;
+        seen.add(card.id);
+        found.push(card);
+      }
+      if (found.length >= 12) break;
+    }
+
+    return found.slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+function buildSearchQueries(value) {
+  const query = value.trim();
+  const parsed = parseCardNumber(query);
+  const parts = [];
+
+  if (parsed.number) {
+    const numberPart = `number:"${parsed.number}"`;
+    if (parsed.total) {
+      parts.push(`${numberPart} set.printedTotal:${parsed.total}`);
+      parts.push(`${numberPart} set.total:${parsed.total}`);
+    }
+    parts.push(numberPart);
+  }
+
+  parts.push(`name:"${query.replaceAll('"', '\\"')}*"`);
+  parts.push(`set.name:"${query.replaceAll('"', '\\"')}*"`);
+  return parts.filter((item, index, list) => item && list.indexOf(item) === index);
+}
+
+function resultTemplate(card) {
+  const prices = card.cardmarket?.prices;
+  const img = card.images?.small || "";
+  return `
+    <button class="result-card" type="button" data-id="${escapeAttr(card.id)}">
+      <span class="result-image">${img ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(card.name)}" />` : ""}</span>
+      <span class="result-info">
+        <strong>${escapeHtml(card.name)}</strong>
+        <span>${escapeHtml(card.set?.name || "-")}</span>
+        <span>${escapeHtml(card.rarity || "Unknown")} / ${escapeHtml(card.number || "-")}${card.set?.printedTotal ? `/${card.set.printedTotal}` : ""}</span>
+        <em>CM low: ${formatPrice(prices?.lowPrice)}</em>
+      </span>
+    </button>
+  `;
+}
+
+function cardFromApi(match) {
+  const market = marketFromApiCard(match);
+  return {
+    id: "",
+    isDraft: true,
+    name: match.name || "",
+    series: match.set?.name || "",
+    number: match.set?.printedTotal ? `${match.number}/${match.set.printedTotal}` : match.number || "",
+    rarity: normalizeRarity(match.rarity),
+    status: "owned",
+    quantity: 1,
+    condition: "Near Mint",
+    finish: defaultFinish(match.rarity),
+    value: market?.lowPrice || 0,
+    psa10: 0,
+    image: match.images?.small || "",
+    note: "",
+    market,
+    createdAt: Date.now(),
+  };
 }
 
 function getVisibleCards() {

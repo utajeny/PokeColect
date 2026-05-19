@@ -108,6 +108,14 @@
 
         <p class="price-status" id="priceStatus">Cardmarket ceny sa aktualizuju automaticky po otvoreni appky.</p>
 
+        <section class="search-results hidden" id="searchResults" aria-live="polite">
+          <div class="results-head">
+            <h3>Vysledky hladania</h3>
+            <button class="ghost-button" id="clearResultsButton" type="button">Zavriet</button>
+          </div>
+          <div class="result-grid" id="resultGrid"></div>
+        </section>
+
         <section class="cards-grid" id="cardsGrid" aria-live="polite"></section>
         <section class="empty-state hidden" id="emptyState">
           <div class="empty-art" aria-hidden="true"></div>
@@ -210,6 +218,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=tg-safe-autofill"></script>
+    <script src="app.js?v=search-results"></script>
   </body>
 </html>
