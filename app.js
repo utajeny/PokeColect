@@ -427,6 +427,7 @@ function buildSearchQueries(value) {
   const query = value.trim();
   const parsed = parseCardNumber(query);
   const parts = [];
+  const textVariants = searchTextVariants(query);
 
   if (parsed.number) {
     const numberPart = `number:"${parsed.number}"`;
@@ -437,9 +438,29 @@ function buildSearchQueries(value) {
     parts.push(numberPart);
   }
 
-  parts.push(`name:"${query.replaceAll('"', '\\"')}*"`);
-  parts.push(`set.name:"${query.replaceAll('"', '\\"')}*"`);
+  textVariants.forEach((variant) => {
+    const safe = escapeApiQuery(variant);
+    parts.push(`name:"${safe}*"`);
+    parts.push(`name:"${safe}"`);
+    parts.push(`set.name:"${safe}*"`);
+    parts.push(`set.name:"${safe}"`);
+  });
+
   return parts.filter((item, index, list) => item && list.indexOf(item) === index);
+}
+
+function searchTextVariants(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  const lower = trimmed.toLowerCase();
+  const title = lower.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+  const upper = trimmed.toUpperCase();
+  return [trimmed, lower, title, upper].filter((item, index, list) => item && list.indexOf(item) === index);
+}
+
+function escapeApiQuery(value) {
+  return value.replaceAll('"', '\\"');
 }
 
 function resultTemplate(card) {
