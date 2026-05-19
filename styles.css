@@ -216,6 +216,48 @@ h2 {
   gap: 18px;
 }
 
+.auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+}
+
+.auth-bar span {
+  max-width: 180px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.auth-bar input {
+  width: 150px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #070909;
+  color: var(--ink);
+}
+
+.auth-lock {
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background: #070909;
+}
+
+.auth-lock h3 {
+  margin-bottom: 6px;
+}
+
+.auth-lock p {
+  max-width: 680px;
+  color: var(--muted);
+}
+
 .portfolio-hero {
   display: grid;
   justify-items: center;
@@ -1104,6 +1146,14 @@ form {
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .auth-bar {
+    flex-wrap: wrap;
+  }
+
+  .auth-bar input {
+    flex: 1 1 130px;
   }
 
   .topbar-actions {

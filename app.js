@@ -5,6 +5,8 @@ const BINDER_EXTRAS_KEY = "pokemon-card-binder-extras-v1";
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
 const SETS_API_BASE = "https://api.tcgdex.net/v2/en/sets";
 const TCGDEX_CARD_API = "https://api.tcgdex.net/v2/en/cards";
+const CLOUD_TABLE = "poke_profiles";
+const SUPABASE_CONFIG = window.POKECOLECT_SUPABASE || {};
 
 const grandmasterVariantPresets = {
   me02: [
@@ -233,10 +235,10 @@ const statusLabels = {
   binder: "Binder",
 };
 
-let cards = loadCards();
-let binderMarks = loadBinderMarks();
-let binderImports = loadBinderImports();
-let binderExtras = loadBinderExtras();
+let cards = [];
+let binderMarks = {};
+let binderImports = [];
+let binderExtras = {};
 let activeView = "all";
 let editorMarket = null;
 let autofillTimer = null;
@@ -247,6 +249,10 @@ let binderCards = [];
 let binderSets = [...defaultBinderSets];
 let binderPage = 1;
 let binderSetId = defaultBinderSets[0].id;
+let supabaseClient = null;
+let currentUser = null;
+let cloudSaveTimer = null;
+let isLoadingCloud = false;
 
 const elements = {
   grid: document.querySelector("#cardsGrid"),
@@ -305,6 +311,14 @@ const elements = {
   marketMovers: document.querySelector("#marketMovers"),
   completionValue: document.querySelector("#completionValue"),
   completionBar: document.querySelector("#completionBar"),
+  authForm: document.querySelector("#authForm"),
+  authEmail: document.querySelector("#authEmail"),
+  authPassword: document.querySelector("#authPassword"),
+  authStatus: document.querySelector("#authStatus"),
+  signupButton: document.querySelector("#signupButton"),
+  logoutButton: document.querySelector("#logoutButton"),
+  authLock: document.querySelector("#authLock"),
+  authRequired: [...document.querySelectorAll("[data-auth-required]")],
 };
 
 document.querySelector("#openFormButton").addEventListener("click", () => openEditor());
@@ -313,6 +327,12 @@ document.querySelector("#closeDialogButton").addEventListener("click", closeEdit
 document.querySelector("#cancelButton").addEventListener("click", closeEditor);
 document.querySelector("#seedButton").addEventListener("click", addSamples);
 elements.refreshPricesButton.addEventListener("click", () => refreshMarketPrices({ force: true }));
+elements.authForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  signIn();
+});
+elements.signupButton.addEventListener("click", signUp);
+elements.logoutButton.addEventListener("click", signOut);
 
 document.querySelectorAll(".nav-tab").forEach((button) => {
   button.addEventListener("click", () => {
@@ -367,8 +387,8 @@ elements.deleteButton.addEventListener("click", () => {
 
 populateRaritySelects();
 populateBinderSets();
-render();
-refreshMarketPrices();
+updateAuthUi();
+initAuth();
 
 function loadCards() {
   try {
@@ -382,7 +402,8 @@ function loadCards() {
 }
 
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+  writeUserStorage(STORAGE_KEY, cards);
+  queueCloudSave();
 }
 
 function loadBinderMarks() {
@@ -394,7 +415,8 @@ function loadBinderMarks() {
 }
 
 function persistBinderMarks() {
-  localStorage.setItem(BINDER_KEY, JSON.stringify(binderMarks));
+  writeUserStorage(BINDER_KEY, binderMarks);
+  queueCloudSave();
 }
 
 function loadBinderImports() {
@@ -406,7 +428,8 @@ function loadBinderImports() {
 }
 
 function persistBinderImports() {
-  localStorage.setItem(BINDER_IMPORTS_KEY, JSON.stringify(binderImports));
+  writeUserStorage(BINDER_IMPORTS_KEY, binderImports);
+  queueCloudSave();
 }
 
 function loadBinderExtras() {
@@ -418,7 +441,199 @@ function loadBinderExtras() {
 }
 
 function persistBinderExtras() {
-  localStorage.setItem(BINDER_EXTRAS_KEY, JSON.stringify(binderExtras));
+  writeUserStorage(BINDER_EXTRAS_KEY, binderExtras);
+  queueCloudSave();
+}
+
+async function initAuth() {
+  if (!isSupabaseConfigured()) {
+    elements.authStatus.textContent = "Cloud login este nie je nastaveny";
+    updateAuthUi();
+    render();
+    return;
+  }
+
+  supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+  const { data } = await supabaseClient.auth.getSession();
+  currentUser = data.session?.user || null;
+  updateAuthUi();
+  if (currentUser) {
+    await loadCloudProfile();
+    refreshMarketPrices();
+  } else {
+    render();
+  }
+
+  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+    currentUser = session?.user || null;
+    updateAuthUi();
+    if (currentUser) {
+      await loadCloudProfile();
+      refreshMarketPrices();
+    } else {
+      clearPrivateState();
+      render();
+    }
+  });
+}
+
+function isSupabaseConfigured() {
+  return Boolean(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey && window.supabase);
+}
+
+async function signIn() {
+  if (!isSupabaseConfigured()) {
+    elements.authStatus.textContent = "Najprv nastav Supabase v auth-config.js";
+    return;
+  }
+  const email = elements.authEmail.value.trim();
+  const password = elements.authPassword.value;
+  if (!email || !password) {
+    elements.authStatus.textContent = "Zadaj email aj heslo";
+    return;
+  }
+  elements.authStatus.textContent = "Prihlasujem...";
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) elements.authStatus.textContent = error.message;
+}
+
+async function signUp() {
+  if (!isSupabaseConfigured()) {
+    elements.authStatus.textContent = "Najprv nastav Supabase v auth-config.js";
+    return;
+  }
+  const email = elements.authEmail.value.trim();
+  const password = elements.authPassword.value;
+  if (!email || password.length < 6) {
+    elements.authStatus.textContent = "Heslo musi mat aspon 6 znakov";
+    return;
+  }
+  elements.authStatus.textContent = "Vytvaram ucet...";
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  elements.authStatus.textContent = error ? error.message : "Ucet vytvoreny. Ak pride email, potvrd ho a potom sa prihlas.";
+}
+
+async function signOut() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+}
+
+function updateAuthUi() {
+  const signedIn = Boolean(currentUser);
+  const configured = isSupabaseConfigured();
+  elements.authRequired.forEach((element) => {
+    element.disabled = !signedIn;
+  });
+  elements.authLock.classList.toggle("hidden", signedIn);
+  elements.authEmail.classList.toggle("hidden", signedIn);
+  elements.authPassword.classList.toggle("hidden", signedIn);
+  elements.signupButton.classList.toggle("hidden", signedIn);
+  elements.authForm.querySelector("#loginButton").classList.toggle("hidden", signedIn);
+  elements.logoutButton.classList.toggle("hidden", !signedIn);
+  if (signedIn) {
+    elements.authStatus.textContent = currentUser.email || "Prihlaseny";
+  } else if (!configured) {
+    elements.authStatus.textContent = "Cloud login este nie je nastaveny";
+  } else {
+    elements.authStatus.textContent = "Neprihlaseny";
+  }
+}
+
+async function loadCloudProfile() {
+  if (!supabaseClient || !currentUser) return;
+  isLoadingCloud = true;
+  elements.authStatus.textContent = "Nacitavam zbierku...";
+  const { data, error } = await supabaseClient
+    .from(CLOUD_TABLE)
+    .select("data")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  if (error) {
+    elements.authStatus.textContent = `Cloud chyba: ${error.message}`;
+    isLoadingCloud = false;
+    render();
+    return;
+  }
+
+  applyProfileData(data?.data || loadUserProfileCache());
+  writeProfileCache();
+  if (!data?.data) await saveCloudProfile();
+  isLoadingCloud = false;
+  elements.authStatus.textContent = currentUser.email || "Prihlaseny";
+  populateBinderSets();
+  render();
+}
+
+function loadUserProfileCache() {
+  return {
+    cards: readUserStorage(STORAGE_KEY, []),
+    binderMarks: readUserStorage(BINDER_KEY, {}),
+    binderImports: readUserStorage(BINDER_IMPORTS_KEY, []),
+    binderExtras: readUserStorage(BINDER_EXTRAS_KEY, {}),
+  };
+}
+
+function applyProfileData(data) {
+  cards = Array.isArray(data.cards) ? data.cards : [];
+  binderMarks = data.binderMarks || {};
+  binderImports = Array.isArray(data.binderImports) ? data.binderImports : [];
+  binderExtras = data.binderExtras || {};
+}
+
+function clearPrivateState() {
+  cards = [];
+  binderMarks = {};
+  binderImports = [];
+  binderExtras = {};
+  binderCards = [];
+}
+
+function profileSnapshot() {
+  return { cards, binderMarks, binderImports, binderExtras };
+}
+
+function userStorageKey(key) {
+  return currentUser ? `${key}:${currentUser.id}` : key;
+}
+
+function readUserStorage(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(userStorageKey(key))) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeUserStorage(key, value) {
+  if (!currentUser) return;
+  localStorage.setItem(userStorageKey(key), JSON.stringify(value));
+}
+
+function writeProfileCache() {
+  writeUserStorage(STORAGE_KEY, cards);
+  writeUserStorage(BINDER_KEY, binderMarks);
+  writeUserStorage(BINDER_IMPORTS_KEY, binderImports);
+  writeUserStorage(BINDER_EXTRAS_KEY, binderExtras);
+}
+
+function queueCloudSave() {
+  if (isLoadingCloud || !supabaseClient || !currentUser) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(saveCloudProfile, 500);
+}
+
+async function saveCloudProfile() {
+  if (!supabaseClient || !currentUser) return;
+  writeProfileCache();
+  const { error } = await supabaseClient.from(CLOUD_TABLE).upsert({
+    user_id: currentUser.id,
+    data: profileSnapshot(),
+    updated_at: new Date().toISOString(),
+  });
+  if (error) {
+    elements.authStatus.textContent = `Ukladanie zlyhalo: ${error.message}`;
+  }
 }
 
 async function populateBinderSets() {
@@ -480,6 +695,7 @@ function renderBinderSetOptions(sets) {
 }
 
 function importBinderList() {
+  if (!requireLogin()) return;
   const raw = elements.binderImportInput.value.trim();
   if (!raw) {
     elements.binderImportStatus.textContent = "Najprv vloz skopirovany zoznam.";
@@ -504,6 +720,7 @@ function importBinderList() {
 }
 
 function applyBinderTargetCount() {
+  if (!requireLogin()) return;
   const target = Number(elements.binderTargetCount.value || 0);
   if (!target || target <= binderCards.length) {
     elements.binderTargetStatus.textContent = `Zadaj cislo vacsie ako aktualnych ${binderCards.length} slotov.`;
@@ -524,6 +741,7 @@ function applyBinderTargetCount() {
 }
 
 function applyStampedGrandmasterPreset() {
+  if (!requireLogin()) return;
   const preset = grandmasterVariantPresets[binderSetId] || [];
   if (!preset.length) {
     elements.binderTargetStatus.textContent = "Pre tento set este nemam stamped/cosmos preset.";
@@ -681,6 +899,7 @@ function rarityOptionMarkup() {
 }
 
 function addSamples() {
+  if (!requireLogin()) return;
   const existingNames = new Set(cards.map((card) => card.name));
   const freshSamples = sampleCards
     .filter((card) => !existingNames.has(card.name))
@@ -692,6 +911,7 @@ function addSamples() {
 }
 
 function openEditor(card = null) {
+  if (!requireLogin()) return;
   elements.form.reset();
   editorMarket = card?.market ?? null;
   elements.deleteButton.classList.toggle("hidden", !card || card.isDraft);
@@ -751,6 +971,16 @@ function saveFromForm() {
 }
 
 function render() {
+  if (!currentUser) {
+    renderStats();
+    elements.binderView.classList.add("hidden");
+    elements.grid.classList.add("hidden");
+    elements.emptyState.classList.add("hidden");
+    elements.searchResults.classList.add("hidden");
+    elements.marketMovers.innerHTML = `<p class="result-message">Prihlas sa, potom uvidis svoje market movers.</p>`;
+    return;
+  }
+
   const filtered = getVisibleCards();
   renderStats();
   const isBinder = activeView === "binder";
@@ -1204,12 +1434,19 @@ function binderCardTemplate(entry) {
 }
 
 function toggleBinderCard(entryId) {
+  if (!requireLogin()) return;
   const entry = binderCards.find((item) => item.id === entryId);
   if (!entry) return;
   binderMarks[binderSetId] = binderMarks[binderSetId] || {};
   binderMarks[binderSetId][entry.markKey] = !isBinderCardOwned(entry);
   persistBinderMarks();
   renderBinder();
+}
+
+function requireLogin() {
+  if (currentUser) return true;
+  elements.authStatus.textContent = isSupabaseConfigured() ? "Najprv sa prihlas" : "Najprv nastav Supabase v auth-config.js";
+  return false;
 }
 
 function isBinderCardOwned(entry) {

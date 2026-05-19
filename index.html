@@ -54,12 +54,25 @@
             <p class="eyebrow">Portfolio</p>
             <h2>Main</h2>
           </div>
+          <form class="auth-bar" id="authForm" autocomplete="on">
+            <span id="authStatus">Neprihlaseny</span>
+            <input id="authEmail" type="email" placeholder="email" autocomplete="email" />
+            <input id="authPassword" type="password" placeholder="heslo" autocomplete="current-password" minlength="6" />
+            <button class="ghost-button" id="loginButton" type="submit">Login</button>
+            <button class="ghost-button" id="signupButton" type="button">Registracia</button>
+            <button class="ghost-button hidden" id="logoutButton" type="button">Logout</button>
+          </form>
           <div class="topbar-actions">
-            <button class="ghost-button" id="seedButton" type="button" title="Pridat ukazkove Pokemon karty">Ukazky</button>
-            <button class="ghost-button" id="refreshPricesButton" type="button" title="Aktualizovat Cardmarket ceny">Ceny</button>
-            <button class="primary-button" id="openFormButton" type="button">Pridat kartu</button>
+            <button class="ghost-button" id="seedButton" type="button" title="Pridat ukazkove Pokemon karty" data-auth-required>Ukazky</button>
+            <button class="ghost-button" id="refreshPricesButton" type="button" title="Aktualizovat Cardmarket ceny" data-auth-required>Ceny</button>
+            <button class="primary-button" id="openFormButton" type="button" data-auth-required>Pridat kartu</button>
           </div>
         </header>
+
+        <section class="auth-lock" id="authLock" aria-live="polite">
+          <h3>Prihlas sa do svojej zbierky</h3>
+          <p>Bez loginu sa tvoje karty ani binder oznacenia nezobrazia. Po prihlaseni sa ulozia do cloudu a uvidis ich aj na inom zariadeni.</p>
+        </section>
 
         <section class="portfolio-hero" aria-label="Portfolio hodnota">
           <p>Portfolio: <strong>Main</strong></p>
@@ -176,7 +189,7 @@
           <div class="empty-art" aria-hidden="true"></div>
           <h3>Ziadne Pokemon karty tu este nie su</h3>
           <p>Pridaj prvu kartu alebo nacitaj ukazkove Pokemon karty a zbierka sa hned rozbehne.</p>
-          <button class="primary-button" id="emptyAddButton" type="button">Pridat kartu</button>
+          <button class="primary-button" id="emptyAddButton" type="button" data-auth-required>Pridat kartu</button>
         </section>
       </main>
     </div>
@@ -258,6 +271,8 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=binderforge-pf-match"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth-config.js?v=login-cloud"></script>
+    <script src="app.js?v=login-cloud"></script>
   </body>
 </html>
