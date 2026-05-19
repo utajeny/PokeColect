@@ -120,14 +120,20 @@
           <div class="binder-head">
             <div>
               <h3>Binder</h3>
-              <p><span id="binderCount">0</span> kariet / <span id="binderPages">0</span> stran</p>
+              <p><span id="binderOwnedCount">0</span> owned / <span id="binderCount">0</span> cards / <span id="binderPages">0</span> pages</p>
             </div>
+            <select id="binderSetSelect" aria-label="Vybrat set do binderu"></select>
             <div class="binder-toggle" aria-label="Binder layout">
               <button class="active" type="button">Single</button>
               <button type="button">Spread</button>
             </div>
           </div>
           <div class="binder-grid" id="binderGrid"></div>
+          <div class="binder-pager">
+            <button id="binderPrevButton" type="button">Prev</button>
+            <span id="binderPageLabel">1 / 1</span>
+            <button id="binderNextButton" type="button">Next</button>
+          </div>
         </section>
 
         <section class="cards-grid" id="cardsGrid" aria-live="polite"></section>

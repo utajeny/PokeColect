@@ -1,5 +1,14 @@
 const STORAGE_KEY = "pokemon-card-collector-v1";
+const BINDER_KEY = "pokemon-card-binder-marks-v1";
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
+
+const defaultBinderSets = [
+  { id: "sv3pt5", name: "151" },
+  { id: "swsh12tg", name: "Silver Tempest Trainer Gallery" },
+  { id: "swsh11tg", name: "Lost Origin Trainer Gallery" },
+  { id: "swsh10tg", name: "Astral Radiance Trainer Gallery" },
+  { id: "swsh9tg", name: "Brilliant Stars Trainer Gallery" },
+];
 
 const sampleCards = [
   {
@@ -159,12 +168,16 @@ const statusLabels = {
 };
 
 let cards = loadCards();
+let binderMarks = loadBinderMarks();
 let activeView = "all";
 let editorMarket = null;
 let autofillTimer = null;
 let lastAutofillKey = "";
 let searchTimer = null;
 let lastRemoteSearch = "";
+let binderCards = [];
+let binderPage = 1;
+let binderSetId = defaultBinderSets[0].id;
 
 const elements = {
   grid: document.querySelector("#cardsGrid"),
@@ -174,8 +187,13 @@ const elements = {
   clearResultsButton: document.querySelector("#clearResultsButton"),
   binderView: document.querySelector("#binderView"),
   binderGrid: document.querySelector("#binderGrid"),
+  binderSetSelect: document.querySelector("#binderSetSelect"),
   binderCount: document.querySelector("#binderCount"),
+  binderOwnedCount: document.querySelector("#binderOwnedCount"),
   binderPages: document.querySelector("#binderPages"),
+  binderPrevButton: document.querySelector("#binderPrevButton"),
+  binderNextButton: document.querySelector("#binderNextButton"),
+  binderPageLabel: document.querySelector("#binderPageLabel"),
   search: document.querySelector("#searchInput"),
   rarity: document.querySelector("#rarityFilter"),
   sort: document.querySelector("#sortSelect"),
@@ -235,6 +253,20 @@ elements.number.addEventListener("change", () => autofillCardByNumber({ force: t
 elements.number.addEventListener("blur", () => autofillCardByNumber({ force: true }));
 elements.lookupCardButton.addEventListener("click", () => autofillCardByNumber({ force: true, allowPartial: true }));
 elements.psa10.addEventListener("input", clampPsaGrade);
+elements.binderSetSelect.addEventListener("change", () => {
+  binderSetId = elements.binderSetSelect.value;
+  binderPage = 1;
+  loadBinderSet();
+});
+elements.binderPrevButton.addEventListener("click", () => {
+  binderPage = Math.max(1, binderPage - 1);
+  renderBinder();
+});
+elements.binderNextButton.addEventListener("click", () => {
+  const pages = getBinderPageCount();
+  binderPage = Math.min(pages, binderPage + 1);
+  renderBinder();
+});
 
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -250,6 +282,7 @@ elements.deleteButton.addEventListener("click", () => {
 });
 
 populateRaritySelects();
+populateBinderSets();
 render();
 refreshMarketPrices();
 
@@ -266,6 +299,31 @@ function loadCards() {
 
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
+
+function loadBinderMarks() {
+  try {
+    return JSON.parse(localStorage.getItem(BINDER_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function persistBinderMarks() {
+  localStorage.setItem(BINDER_KEY, JSON.stringify(binderMarks));
+}
+
+function populateBinderSets() {
+  const merged = [...defaultBinderSets];
+  cards.forEach((card) => {
+    const setId = getCardSetId(card);
+    if (!setId || merged.some((set) => set.id === setId)) return;
+    merged.push({ id: setId, name: card.series || setId });
+  });
+  elements.binderSetSelect.innerHTML = merged
+    .map((set) => `<option value="${escapeAttr(set.id)}">${escapeHtml(set.name)}</option>`)
+    .join("");
+  elements.binderSetSelect.value = binderSetId;
 }
 
 function populateRaritySelects() {
@@ -361,7 +419,7 @@ function render() {
   elements.grid.classList.toggle("hidden", isBinder);
   elements.emptyState.classList.toggle("hidden", isBinder || filtered.length > 0);
   elements.grid.innerHTML = isBinder ? "" : filtered.map(cardTemplate).join("");
-  renderBinder();
+  if (isBinder) loadBinderSet();
 
   elements.grid.querySelectorAll(".edit-button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -370,12 +428,6 @@ function render() {
     });
   });
 
-  elements.binderGrid.querySelectorAll(".binder-slot").forEach((button) => {
-    button.addEventListener("click", () => {
-      const card = cards.find((item) => item.id === button.dataset.id);
-      openEditor(card);
-    });
-  });
 }
 
 function scheduleRemoteSearch() {
@@ -569,17 +621,42 @@ function renderStats() {
 function renderBinder() {
   if (activeView !== "binder") return;
 
-  const binderCards = getBinderCards();
   const pageSize = 20;
+  const pages = getBinderPageCount();
+  const owned = binderCards.filter(isBinderCardOwned).length;
+  const start = (binderPage - 1) * pageSize;
+  const visibleCards = binderCards.slice(start, start + pageSize);
+
   elements.binderCount.textContent = binderCards.length;
-  elements.binderPages.textContent = Math.max(1, Math.ceil(binderCards.length / pageSize));
-  elements.binderGrid.innerHTML = binderCards.length
-    ? binderCards.slice(0, pageSize).map(binderCardTemplate).join("")
-    : `<p class="result-message">Binder je prazdny. Pri pridavani nastav stav na Binder alebo pridaj karty do zbierky.</p>`;
+  elements.binderOwnedCount.textContent = owned;
+  elements.binderPages.textContent = pages;
+  elements.binderPageLabel.textContent = `${binderPage} / ${pages}`;
+  elements.binderPrevButton.disabled = binderPage <= 1;
+  elements.binderNextButton.disabled = binderPage >= pages;
+  elements.binderGrid.innerHTML = visibleCards.length
+    ? visibleCards.map(binderCardTemplate).join("")
+    : `<p class="result-message">Nacitavam set do binderu...</p>`;
+
+  elements.binderGrid.querySelectorAll(".binder-slot").forEach((button) => {
+    button.addEventListener("click", () => toggleBinderCard(button.dataset.cardId));
+  });
 }
 
-function getBinderCards() {
-  return cards.filter(isBinderCard);
+async function loadBinderSet() {
+  if (activeView !== "binder") return;
+  elements.binderGrid.innerHTML = `<p class="result-message">Nacitavam set do binderu...</p>`;
+  try {
+    const response = await fetch(`${API_BASE}?q=${encodeURIComponent(`set.id:${binderSetId}`)}&pageSize=250&orderBy=number`);
+    const payload = response.ok ? await response.json() : { data: [] };
+    binderCards = payload.data ?? [];
+  } catch {
+    binderCards = [];
+  }
+  renderBinder();
+}
+
+function getBinderPageCount() {
+  return Math.max(1, Math.ceil(binderCards.length / 20));
 }
 
 function isBinderCard(card) {
@@ -591,17 +668,40 @@ function isPortfolioCard(card) {
 }
 
 function binderCardTemplate(card) {
-  const image = card.image
-    ? `<img src="${escapeAttr(card.image)}" alt="${escapeAttr(card.name)}" />`
+  const owned = isBinderCardOwned(card);
+  const image = card.images?.small
+    ? `<img src="${escapeAttr(card.images.small)}" alt="${escapeAttr(card.name)}" />`
     : `<span>${escapeHtml((card.name || "?").slice(0, 2).toUpperCase())}</span>`;
 
   return `
-    <button class="binder-slot" type="button" data-id="${escapeAttr(card.id)}">
+    <button class="binder-slot ${owned ? "owned" : "wanted"}" type="button" data-card-id="${escapeAttr(card.id)}">
       <span class="binder-card-art">${image}</span>
       <strong>${escapeHtml(card.name)}</strong>
-      <small>${escapeHtml(card.number || "-")}</small>
+      <small>${escapeHtml(card.number || "-")} / ${escapeHtml(card.rarity || "-")}</small>
+      <em>${owned ? "Owned" : "Wanted"}</em>
     </button>
   `;
+}
+
+function toggleBinderCard(apiCardId) {
+  const card = binderCards.find((item) => item.id === apiCardId);
+  if (!card) return;
+  binderMarks[binderSetId] = binderMarks[binderSetId] || {};
+  binderMarks[binderSetId][card.number] = !isBinderCardOwned(card);
+  persistBinderMarks();
+  renderBinder();
+}
+
+function isBinderCardOwned(apiCard) {
+  if (binderMarks[binderSetId]?.[apiCard.number]) return true;
+  return cards.some((card) => {
+    const sameSet = getCardSetId(card) === binderSetId || card.series === apiCard.set?.name;
+    return isBinderCard(card) && sameSet && normalizeCardNumber(card.number.split("/")[0]) === normalizeCardNumber(apiCard.number);
+  });
+}
+
+function getCardSetId(card) {
+  return card.market?.cardId?.split("-").slice(0, -1).join("-") || "";
 }
 
 function cardTemplate(card) {
