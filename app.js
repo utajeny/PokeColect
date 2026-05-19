@@ -551,12 +551,14 @@ async function autofillCardByNumber({ force = false, allowPartial = false } = {}
 
   try {
     const match = await findCardMatch(parsedNumber, typedName, typedSet);
-    if (!match) return;
+    if (!match) {
+      elements.priceStatus.textContent = "Toto cislo je nejednoznacne. Dopln aj nazov Pokemona alebo set.";
+      return;
+    }
 
     const prices = match.cardmarket?.prices;
     elements.name.value = elements.name.value.trim() || match.name || "";
     elements.series.value = elements.series.value.trim() || match.set?.name || "";
-    elements.number.value = match.number || number;
     elements.rarityInput.value = normalizeRarity(match.rarity);
     elements.image.value = match.images?.small || elements.image.value;
 
@@ -589,7 +591,7 @@ async function findCardMatch(parsedNumber, typedName, typedSet) {
 }
 
 function buildAutofillQueries(parsedNumber, typedName, typedSet) {
-  const numberPart = `number:${parsedNumber.number}`;
+  const numberPart = `number:"${parsedNumber.number}"`;
   const namePart = typedName ? ` name:"${typedName.replaceAll('"', '\\"')}"` : "";
   const setPart = typedSet ? ` set.name:"${typedSet.replaceAll('"', '\\"')}"` : "";
   const totalPart = parsedNumber.total ? ` set.printedTotal:${parsedNumber.total}` : "";
@@ -607,6 +609,10 @@ function buildAutofillQueries(parsedNumber, typedName, typedSet) {
 }
 
 function pickBestCard(results, parsedNumber, typedName, typedSet) {
+  if (!typedName && !typedSet && isAmbiguousNumber(results, parsedNumber)) {
+    return null;
+  }
+
   const scored = results.map((card) => ({
     card,
     score:
@@ -619,6 +625,20 @@ function pickBestCard(results, parsedNumber, typedName, typedSet) {
 
   scored.sort((a, b) => b.score - a.score);
   return scored[0]?.card ?? null;
+}
+
+function isAmbiguousNumber(results, parsedNumber) {
+  if (results.length <= 1) return false;
+
+  const exactMatches = results.filter((card) => {
+    const sameNumber = String(card.number || "").toLowerCase() === parsedNumber.number.toLowerCase();
+    const sameTotal = parsedNumber.total
+      ? Number(card.set?.printedTotal) === Number(parsedNumber.total) || Number(card.set?.total) === Number(parsedNumber.total)
+      : true;
+    return sameNumber && sameTotal;
+  });
+
+  return exactMatches.length > 1;
 }
 
 function scoreTotal(card, total) {
@@ -646,7 +666,7 @@ function parseCardNumber(value) {
   const [rawNumber = "", rawTotal = ""] = value.split("/");
   return {
     number: normalizeCardNumber(rawNumber),
-    total: normalizeCardNumber(rawTotal),
+    total: normalizeSetTotal(rawTotal),
   };
 }
 
@@ -656,6 +676,11 @@ function normalizeCardNumber(value) {
   const match = trimmed.match(/^0*(\d+)(.*)$/);
   if (!match) return trimmed;
   return `${match[1] || "0"}${match[2] || ""}`;
+}
+
+function normalizeSetTotal(value) {
+  const digits = String(value || "").match(/\d+/)?.[0] || "";
+  return digits ? String(Number(digits)) : "";
 }
 
 function marketFromApiCard(match) {
