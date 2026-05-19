@@ -142,6 +142,8 @@ const statusLabels = {
 let cards = loadCards();
 let activeView = "all";
 let editorMarket = null;
+let autofillTimer = null;
+let lastAutofillKey = "";
 
 const elements = {
   grid: document.querySelector("#cardsGrid"),
@@ -191,8 +193,9 @@ document.querySelectorAll(".nav-tab").forEach((button) => {
 elements.search.addEventListener("input", render);
 elements.rarity.addEventListener("change", render);
 elements.sort.addEventListener("change", render);
-elements.number.addEventListener("change", autofillCardByNumber);
-elements.number.addEventListener("blur", autofillCardByNumber);
+elements.number.addEventListener("input", scheduleCardAutofill);
+elements.number.addEventListener("change", () => autofillCardByNumber({ force: true }));
+elements.number.addEventListener("blur", () => autofillCardByNumber({ force: true }));
 elements.psa10.addEventListener("input", clampPsaGrade);
 
 elements.form.addEventListener("submit", (event) => {
@@ -462,25 +465,31 @@ async function fetchCardMarket(card) {
   }
 }
 
-async function autofillCardByNumber() {
+function scheduleCardAutofill() {
+  clearTimeout(autofillTimer);
+  autofillTimer = setTimeout(() => autofillCardByNumber(), 550);
+}
+
+async function autofillCardByNumber({ force = false } = {}) {
   const number = elements.number.value.trim();
   if (!number) return;
 
   const currentId = elements.cardId.value;
   const existing = currentId ? cards.find((card) => card.id === currentId) : null;
   const typedName = elements.name.value.trim();
-  const query = typedName
-    ? `number:"${number.split("/")[0]}" name:"${typedName.replaceAll('"', '\\"')}"`
-    : `number:"${number.split("/")[0]}"`;
+  const typedSet = elements.series.value.trim();
+  const parsedNumber = parseCardNumber(number);
+  if (!parsedNumber.number) return;
+
+  const autofillKey = `${parsedNumber.number}|${parsedNumber.total}|${typedName}|${typedSet}`;
+  if (!force && autofillKey === lastAutofillKey) return;
+  lastAutofillKey = autofillKey;
 
   elements.number.dataset.loading = "true";
   elements.number.title = "Hladam kartu...";
 
   try {
-    const response = await fetch(`${API_BASE}?q=${encodeURIComponent(query)}&pageSize=1`);
-    if (!response.ok) return;
-    const payload = await response.json();
-    const match = payload.data?.[0];
+    const match = await findCardMatch(parsedNumber, typedName, typedSet);
     if (!match) return;
 
     const prices = match.cardmarket?.prices;
@@ -502,6 +511,90 @@ async function autofillCardByNumber() {
     elements.number.dataset.loading = "false";
     elements.number.title = "";
   }
+}
+
+async function findCardMatch(parsedNumber, typedName, typedSet) {
+  const queries = buildAutofillQueries(parsedNumber, typedName, typedSet);
+
+  for (const query of queries) {
+    const response = await fetch(`${API_BASE}?q=${encodeURIComponent(query)}&pageSize=25`);
+    if (!response.ok) continue;
+    const payload = await response.json();
+    const cards = payload.data ?? [];
+    if (cards.length) return pickBestCard(cards, parsedNumber, typedName, typedSet);
+  }
+
+  return null;
+}
+
+function buildAutofillQueries(parsedNumber, typedName, typedSet) {
+  const numberPart = `number:${parsedNumber.number}`;
+  const namePart = typedName ? ` name:"${typedName.replaceAll('"', '\\"')}"` : "";
+  const setPart = typedSet ? ` set.name:"${typedSet.replaceAll('"', '\\"')}"` : "";
+  const totalPart = parsedNumber.total ? ` set.printedTotal:${parsedNumber.total}` : "";
+  const totalFallbackPart = parsedNumber.total ? ` set.total:${parsedNumber.total}` : "";
+
+  return [
+    `${numberPart}${namePart}${setPart}${totalPart}`,
+    `${numberPart}${namePart}${totalPart}`,
+    `${numberPart}${namePart}${setPart}${totalFallbackPart}`,
+    `${numberPart}${namePart}${totalFallbackPart}`,
+    `${numberPart}${namePart}${setPart}`,
+    `${numberPart}${namePart}`,
+    numberPart,
+  ].filter((query, index, list) => query.trim() && list.indexOf(query) === index);
+}
+
+function pickBestCard(results, parsedNumber, typedName, typedSet) {
+  const scored = results.map((card) => ({
+    card,
+    score:
+      scoreTotal(card, parsedNumber.total) +
+      scoreText(card.name, typedName, 6) +
+      scoreText(card.set?.name, typedSet, 8) +
+      scoreMarket(card) +
+      scoreReleaseDate(card),
+  }));
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.card ?? null;
+}
+
+function scoreTotal(card, total) {
+  if (!total) return 0;
+  if (Number(card.set?.printedTotal) === Number(total)) return 16;
+  if (Number(card.set?.total) === Number(total)) return 10;
+  return 0;
+}
+
+function scoreText(value, typed, weight) {
+  if (!typed) return 0;
+  return String(value || "").toLowerCase().includes(typed.toLowerCase()) ? weight : 0;
+}
+
+function scoreMarket(card) {
+  return card.cardmarket?.prices?.lowPrice ? 2 : 0;
+}
+
+function scoreReleaseDate(card) {
+  const time = Date.parse((card.set?.releaseDate || "").replaceAll("/", "-"));
+  return Number.isFinite(time) ? time / 1000000000000 : 0;
+}
+
+function parseCardNumber(value) {
+  const [rawNumber = "", rawTotal = ""] = value.split("/");
+  return {
+    number: normalizeCardNumber(rawNumber),
+    total: normalizeCardNumber(rawTotal),
+  };
+}
+
+function normalizeCardNumber(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  const match = trimmed.match(/^0*(\d+)(.*)$/);
+  if (!match) return trimmed;
+  return `${match[1] || "0"}${match[2] || ""}`;
 }
 
 function marketFromApiCard(match) {
