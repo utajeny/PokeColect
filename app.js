@@ -119,6 +119,9 @@ document.querySelectorAll(".nav-tab").forEach((button) => {
 elements.search.addEventListener("input", render);
 elements.rarity.addEventListener("change", render);
 elements.sort.addEventListener("change", render);
+elements.number.addEventListener("change", autofillCardByNumber);
+elements.number.addEventListener("blur", autofillCardByNumber);
+elements.psa10.addEventListener("input", clampPsaGrade);
 
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -192,7 +195,7 @@ function saveFromForm() {
     rarity: elements.rarityInput.value,
     status: elements.status.value,
     value: Number(elements.value.value || 0),
-    psa10: Number(elements.psa10.value || 0),
+    psa10: clampNumber(Number(elements.psa10.value || 0), 0, 10),
     image: elements.image.value.trim(),
     note: elements.note.value.trim(),
     market: existing?.market ?? null,
@@ -285,7 +288,7 @@ function cardTemplate(card) {
         </div>
         <div class="market-row">
           <span>Avg 30d: <strong>${formatPrice(card.market?.avg30)}</strong></span>
-          <span>PSA10: <strong>${formatPrice(card.psa10)}</strong></span>
+          <span>PSA: <strong>${card.psa10 ? `${card.psa10}/10` : "-"}</strong></span>
         </div>
         <p class="market-date">${marketDate(card)}</p>
       </div>
@@ -349,21 +352,87 @@ async function fetchCardMarket(card) {
     const prices = match?.cardmarket?.prices;
     if (!prices) return null;
 
-    return {
-      cardId: match.id,
-      cardmarketUrl: match.cardmarket.url,
-      imageUrl: match.images?.small || "",
-      lowPrice: prices.lowPrice || 0,
-      trendPrice: prices.trendPrice || 0,
-      avg1: prices.avg1 || 0,
-      avg7: prices.avg7 || 0,
-      avg30: prices.avg30 || 0,
-      updatedAt: match.cardmarket.updatedAt,
-      checkedAt: Date.now(),
-    };
+    return marketFromApiCard(match);
   } catch {
     return null;
   }
+}
+
+async function autofillCardByNumber() {
+  const number = elements.number.value.trim();
+  if (!number) return;
+
+  const currentId = elements.cardId.value;
+  const existing = currentId ? cards.find((card) => card.id === currentId) : null;
+  const typedName = elements.name.value.trim();
+  const query = typedName
+    ? `number:"${number.split("/")[0]}" name:"${typedName.replaceAll('"', '\\"')}"`
+    : `number:"${number.split("/")[0]}"`;
+
+  elements.number.dataset.loading = "true";
+  elements.number.title = "Hladam kartu...";
+
+  try {
+    const response = await fetch(`${API_BASE}?q=${encodeURIComponent(query)}&pageSize=1`);
+    if (!response.ok) return;
+    const payload = await response.json();
+    const match = payload.data?.[0];
+    if (!match) return;
+
+    const prices = match.cardmarket?.prices;
+    elements.name.value = elements.name.value.trim() || match.name || "";
+    elements.series.value = match.set?.name || elements.series.value;
+    elements.number.value = match.number || number;
+    elements.rarityInput.value = normalizeRarity(match.rarity);
+    elements.image.value = match.images?.small || elements.image.value;
+
+    if (prices?.lowPrice && !elements.value.value) {
+      elements.value.value = prices.lowPrice;
+    }
+
+    if (existing) {
+      existing.market = prices ? marketFromApiCard(match) : existing.market;
+    }
+  } finally {
+    elements.number.dataset.loading = "false";
+    elements.number.title = "";
+  }
+}
+
+function marketFromApiCard(match) {
+  const prices = match.cardmarket?.prices;
+  if (!prices) return null;
+  return {
+    cardId: match.id,
+    cardmarketUrl: match.cardmarket.url,
+    imageUrl: match.images?.small || "",
+    lowPrice: prices.lowPrice || 0,
+    trendPrice: prices.trendPrice || 0,
+    avg1: prices.avg1 || 0,
+    avg7: prices.avg7 || 0,
+    avg30: prices.avg30 || 0,
+    updatedAt: match.cardmarket.updatedAt,
+    checkedAt: Date.now(),
+  };
+}
+
+function normalizeRarity(rarity) {
+  if (!rarity) return "Common";
+  if (rarity.includes("Ultra")) return "Ultra Rare";
+  if (rarity.includes("Holo")) return "Holo Rare";
+  if (rarity.includes("Uncommon")) return "Uncommon";
+  if (rarity.includes("Rare")) return "Rare";
+  return "Common";
+}
+
+function clampPsaGrade() {
+  if (!elements.psa10.value) return;
+  elements.psa10.value = clampNumber(Number(elements.psa10.value), 1, 10);
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
 }
 
 function buildSearchQuery(card) {
