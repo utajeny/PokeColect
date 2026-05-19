@@ -54,12 +54,83 @@ const sampleCards = [
   },
 ];
 
+const rarityOptions = [
+  { label: "Zakladne rarity", options: ["Common", "Uncommon", "Rare"] },
+  {
+    label: "Holo varianty",
+    options: [
+      "Holo Rare",
+      "Reverse Holo",
+      "Cosmos Holo",
+      "Cracked Ice Holo",
+      "Mirror Holo",
+      "Confetti Holo",
+      "Crosshatch Holo",
+      "Galaxy Holo",
+      "Stamped Holo",
+    ],
+  },
+  {
+    label: "Moderne rarity",
+    options: ["Rare Holo", "Double Rare", "Ultra Rare", "Illustration Rare", "Special Illustration Rare", "Hyper Rare", "Ace Spec"],
+  },
+  {
+    label: "Full Art",
+    options: ["Full Art Pokemon", "Full Art Trainer", "Alternate Art", "Alt Art Trainer", "Textured Full Art"],
+  },
+  {
+    label: "EX / GX / V ery",
+    options: [
+      "Pokemon ex (2003 era)",
+      "Pokemon EX",
+      "Mega EX",
+      "BREAK",
+      "Prism Star",
+      "GX",
+      "Tag Team GX",
+      "Rainbow Rare",
+      "Secret Rare GX",
+      "Pokemon V",
+      "VMAX",
+      "VSTAR",
+      "V-UNION",
+      "Amazing Rare",
+      "Trainer Gallery",
+      "Galarian Gallery",
+      "Pokemon ex",
+    ],
+  },
+  {
+    label: "Shiny kategorie",
+    options: ["Shiny Vault", "Shiny Rare", "Radiant Pokemon", "Shining Pokemon"],
+  },
+  {
+    label: "Japanese 151",
+    options: ["Poke Ball Reverse Holo", "Master Ball Reverse Holo"],
+  },
+  {
+    label: "Secret rarity",
+    options: ["Secret Rare", "Rainbow Secret Rare", "Gold Secret Rare", "Black Gold Rare"],
+  },
+];
+
+const flatRarityOptions = rarityOptions.flatMap((group) => group.options);
+
 const rarityPalette = {
   Common: ["#f2d14b", "#2c77bf", "C"],
   Uncommon: ["#5fbf75", "#2e7a58", "U"],
   Rare: ["#3b69a8", "#1f3b77", "R"],
   "Holo Rare": ["#6fd3f5", "#7b4eb2", "H"],
+  "Reverse Holo": ["#82d7ff", "#7d8ca8", "RH"],
+  "Rare Holo": ["#6fd3f5", "#7b4eb2", "H"],
+  "Double Rare": ["#c9d4e8", "#4272bd", "DR"],
   "Ultra Rare": ["#f0b22e", "#d93b4a", "UR"],
+  "Illustration Rare": ["#f1c542", "#3b8d6f", "IR"],
+  "Special Illustration Rare": ["#f0b22e", "#8d4ca5", "SIR"],
+  "Master Ball Reverse Holo": ["#d84045", "#172238", "MB"],
+  "Poke Ball Reverse Holo": ["#f2d14b", "#d84045", "PB"],
+  "Secret Rare": ["#172238", "#f0b22e", "SR"],
+  "Gold Secret Rare": ["#f1c542", "#8d6b18", "G"],
 };
 
 const statusLabels = {
@@ -137,6 +208,7 @@ elements.deleteButton.addEventListener("click", () => {
   render();
 });
 
+populateRaritySelects();
 render();
 refreshMarketPrices();
 
@@ -150,6 +222,21 @@ function loadCards() {
 
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
+
+function populateRaritySelects() {
+  elements.rarity.innerHTML = `<option value="all">Vsetky rarity</option>${rarityOptionMarkup()}`;
+  elements.rarityInput.innerHTML = rarityOptionMarkup();
+}
+
+function rarityOptionMarkup() {
+  return rarityOptions
+    .map((group) => `
+      <optgroup label="${escapeAttr(group.label)}">
+        ${group.options.map((option) => `<option value="${escapeAttr(option)}">${escapeHtml(option)}</option>`).join("")}
+      </optgroup>
+    `)
+    .join("");
 }
 
 function addSamples() {
@@ -436,10 +523,19 @@ function marketFromApiCard(match) {
 
 function normalizeRarity(rarity) {
   if (!rarity) return "Common";
-  if (rarity.includes("Ultra")) return "Ultra Rare";
-  if (rarity.includes("Holo")) return "Holo Rare";
-  if (rarity.includes("Uncommon")) return "Uncommon";
-  if (rarity.includes("Rare")) return "Rare";
+  const clean = rarity;
+  const exact = flatRarityOptions.find((option) => option.toLowerCase() === clean.toLowerCase());
+  if (exact) return exact;
+  if (clean.includes("Special Illustration")) return "Special Illustration Rare";
+  if (clean.includes("Illustration")) return "Illustration Rare";
+  if (clean.includes("Hyper")) return "Hyper Rare";
+  if (clean.includes("Rainbow")) return "Rainbow Rare";
+  if (clean.includes("Secret")) return "Secret Rare";
+  if (clean.includes("Ultra")) return "Ultra Rare";
+  if (clean.includes("Double")) return "Double Rare";
+  if (clean.includes("Holo")) return "Holo Rare";
+  if (clean.includes("Uncommon")) return "Uncommon";
+  if (clean.includes("Rare")) return "Rare";
   return "Common";
 }
 
