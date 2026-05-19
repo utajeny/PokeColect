@@ -8,26 +8,45 @@ const TCGDEX_CARD_API = "https://api.tcgdex.net/v2/en/cards";
 
 const grandmasterVariantPresets = {
   me02: [
-    { number: "P01", name: "Toxtricity", stamp: "Build & Battle Stamp" },
-    { number: "P02", name: "Ceruledge", stamp: "Build & Battle Stamp" },
-    { number: "P03", name: "Flygon", stamp: "Build & Battle Stamp" },
-    { number: "P04", name: "Zacian", stamp: "Build & Battle Stamp" },
-    { number: "P05", name: "Toxtricity", stamp: "STAFF Stamp" },
-    { number: "P06", name: "Ceruledge", stamp: "STAFF Stamp" },
-    { number: "P07", name: "Flygon", stamp: "STAFF Stamp" },
-    { number: "P08", name: "Zacian", stamp: "STAFF Stamp" },
-    { number: "P09", name: "Suicune", stamp: "GameStop Stamp" },
-    { number: "P10", name: "Suicune", stamp: "EB Games Stamp" },
-    { number: "P11", name: "Charcadet", stamp: "Pokemon Center Stamp" },
-    { number: "P12", name: "Charcadet", stamp: "ETB Promo" },
-    { number: "P13", name: "Reshiram", stamp: "Phantasmal Flames Stamp" },
-    { number: "P14", name: "Suicune", stamp: "Best Buy Stamp" },
-    { number: "P15", name: "Cottonee", stamp: "Promo" },
-    { number: "P16", name: "Whimsicott", stamp: "Promo" },
-    { number: "P17", name: "Dawn", stamp: "STAFF Stamp" },
-    { number: "P18", name: "Phantasmal Flames", stamp: "Retail Stamp" },
-    { number: "P19", name: "Suicune", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P01", name: "Oddish", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P02", name: "Gloom", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P03", name: "Whimsicott", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P04", name: "Ceruledge", stamp: "Prerelease" },
+    { number: "P05", name: "Cottonee", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P06", name: "Vileplume", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P07", name: "Weavile", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P08", name: "Mega Charizard X ex", stamp: "Promo" },
+    { number: "P09", name: "Oricorio ex", stamp: "Promo" },
+    { number: "P10", name: "Zacian", stamp: "Prerelease" },
+    { number: "P11", name: "Flygon", stamp: "Prerelease" },
+    { number: "P12", name: "Toxtricity", stamp: "Prerelease" },
+    { number: "P13", name: "Sneasel", variant: { key: "cosmosHolo", label: "Cosmos Holo", short: "Cosmos" } },
+    { number: "P14", name: "Charcadet", stamp: "Promo" },
+    { number: "P15", name: "Genesect", stamp: "Best Buy Exclusive" },
+    { number: "P16", name: "Moltres", stamp: "Deck Exclusive" },
+    { number: "P17", name: "Reshiram", stamp: "Stamped" },
+    { number: "P18", name: "Charcadet", stamp: "Pokemon Center" },
+    { number: "P19", name: "Suicune", stamp: "EB Games Exclusive" },
+    { number: "P20", name: "Suicune", stamp: "Gamestop Exclusive" },
+    { number: "P21", name: "Zacian", stamp: "Deck Exclusive" },
+    { number: "P22", name: "Flygon", stamp: "Deck Exclusive" },
+    { number: "P23", name: "Toxtricity", stamp: "Deck Exclusive" },
+    { number: "P24", name: "Ceruledge", stamp: "Prerelease Staff" },
+    { number: "P25", name: "Zacian", stamp: "Prerelease Staff" },
+    { number: "P26", name: "Flygon", stamp: "Prerelease Staff" },
+    { number: "P27", name: "Toxtricity", stamp: "Prerelease Staff" },
   ],
+};
+
+const binderForgeVariantOverrides = {
+  me02: {
+    omitVariants: {
+      "014": ["holofoil"],
+      "045": ["holofoil"],
+      "053": ["holofoil"],
+      "068": ["holofoil"],
+    },
+  },
 };
 
 const defaultBinderSets = [
@@ -511,18 +530,18 @@ function applyStampedGrandmasterPreset() {
     return;
   }
 
-  const existing = (binderExtras[binderSetId] || []).filter((extra) => extra.variant?.key !== "grandmasterExtra");
-  const existingKeys = new Set(existing.map((extra) => `${extra.number}-${extra.name}-${extra.variant?.label}`));
-  const nextExtras = [
-    ...existing,
-    ...preset
-      .map((entry) => grandmasterPresetEntry(entry))
-      .filter((entry) => !existingKeys.has(`${entry.number}-${entry.name}-${entry.variant.label}`)),
-  ];
+  const presetEntries = preset.map((entry) => grandmasterPresetEntry(entry));
+  const nextExtras =
+    binderSetId === "me02"
+      ? presetEntries
+      : [
+          ...(binderExtras[binderSetId] || []).filter((extra) => extra.variant?.key !== "grandmasterExtra"),
+          ...presetEntries,
+        ];
 
   binderExtras[binderSetId] = nextExtras;
   persistBinderExtras();
-  elements.binderTargetStatus.textContent = `Pridane stamped/cosmos sloty: ${nextExtras.length - existing.length}.`;
+  elements.binderTargetStatus.textContent = `Nastavene stamped/cosmos sloty: ${nextExtras.length}.`;
   loadBinderSet();
 }
 
@@ -1233,7 +1252,16 @@ function variantsFromTcgdex(card) {
   if (flags.holo) variants.push({ key: "holofoil", label: "Holofoil", short: "Holo" });
   if (flags.reverse) variants.push({ key: "reverseHolofoil", label: "Reverse Holofoil", short: "RH" });
   if (flags.wPromo) variants.push({ key: "wPromo", label: "W Promo", short: "W" });
-  return addSpecialReverseVariants(card, variants.length ? variants : [{ key: "card", label: card.rarity || "Card", short: "Card" }]);
+  return applyBinderForgeVariantOverrides(
+    card,
+    addSpecialReverseVariants(card, variants.length ? variants : [{ key: "card", label: card.rarity || "Card", short: "Card" }])
+  );
+}
+
+function applyBinderForgeVariantOverrides(card, variants) {
+  const omitted = binderForgeVariantOverrides[card.set?.id]?.omitVariants?.[card.number];
+  if (!omitted?.length) return variants;
+  return variants.filter((variant) => !omitted.includes(variant.key));
 }
 
 function variantsFromMarketPrices(card) {
