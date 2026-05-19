@@ -187,7 +187,6 @@ const elements = {
   status: document.querySelector("#statusInput"),
   quantity: document.querySelector("#quantityInput"),
   condition: document.querySelector("#conditionInput"),
-  finish: document.querySelector("#finishInput"),
   value: document.querySelector("#valueInput"),
   psa10: document.querySelector("#psa10Input"),
   image: document.querySelector("#imageInput"),
@@ -302,7 +301,6 @@ function openEditor(card = null) {
   elements.status.value = card?.status ?? "owned";
   elements.quantity.value = card?.quantity ?? (card?.status === "wishlist" ? 0 : 1);
   elements.condition.value = card?.condition ?? "Near Mint";
-  elements.finish.value = card?.finish ?? defaultFinish(card?.rarity);
   elements.value.value = getCardValue(card ?? {}) || "";
   elements.psa10.value = card?.psa10 || "";
   elements.image.value = card?.image ?? "";
@@ -328,7 +326,7 @@ function saveFromForm() {
     status: elements.status.value,
     quantity: clampNumber(Number(elements.quantity.value || 0), 0, 999),
     condition: elements.condition.value,
-    finish: elements.finish.value,
+    finish: cardFinishFromRarity(elements.rarityInput.value),
     value: Number(elements.value.value || existing?.value || 0),
     psa10: clampNumber(Number(elements.psa10.value || 0), 0, 10),
     image: elements.image.value.trim(),
@@ -469,7 +467,7 @@ function cardFromApi(match) {
     status: "owned",
     quantity: 1,
     condition: "Near Mint",
-    finish: defaultFinish(match.rarity),
+    finish: cardFinishFromRarity(match.rarity),
     value: market?.lowPrice || 0,
     psa10: 0,
     image: match.images?.small || "",
@@ -546,7 +544,7 @@ function cardTemplate(card) {
         <h3>${escapeHtml(card.name)}</h3>
         <p class="card-set">${escapeHtml(card.series)}</p>
         <p class="card-line">${escapeHtml(card.rarity)} / ${escapeHtml(number)}</p>
-        <p class="card-line"><strong>${escapeHtml(card.condition ?? "Near Mint")}</strong> / ${escapeHtml(card.finish ?? defaultFinish(card.rarity))}</p>
+        <p class="card-line"><strong>${escapeHtml(card.condition ?? "Near Mint")}</strong> / ${escapeHtml(card.finish ?? cardFinishFromRarity(card.rarity))}</p>
         <p class="note">${escapeHtml(note)}</p>
         <div class="card-footer">
           <div>
@@ -578,7 +576,7 @@ function getQuantity(card) {
   return Math.max(0, Number(card.quantity ?? (card.status === "wishlist" ? 0 : 1)));
 }
 
-function defaultFinish(rarity) {
+function cardFinishFromRarity(rarity) {
   if (String(rarity || "").includes("Reverse")) return rarity;
   if (String(rarity || "").includes("Holo") || String(rarity || "").includes("Rare")) return "Holofoil";
   return "Normal";
