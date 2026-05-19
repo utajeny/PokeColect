@@ -120,6 +120,10 @@ const rarityOptions = [
     options: ["Shiny Vault", "Shiny Rare", "Radiant Pokemon", "Shining Pokemon"],
   },
   {
+    label: "Gallery",
+    options: ["Trainer Gallery Rare Holo", "Galarian Gallery Rare Holo"],
+  },
+  {
     label: "Japanese 151",
     options: ["Poke Ball Reverse Holo", "Master Ball Reverse Holo"],
   },
@@ -292,7 +296,9 @@ function openEditor(card = null) {
   elements.name.value = card?.name ?? "";
   elements.series.value = card?.series ?? "";
   elements.number.value = card?.number ?? "";
+  ensureRarityOption(card?.rarity);
   elements.rarityInput.value = card?.rarity ?? "Common";
+  elements.rarityInput.disabled = Boolean(card?.fromApi);
   elements.status.value = card?.status ?? "owned";
   elements.quantity.value = card?.quantity ?? (card?.status === "wishlist" ? 0 : 1);
   elements.condition.value = card?.condition ?? "Near Mint";
@@ -306,6 +312,7 @@ function openEditor(card = null) {
 }
 
 function closeEditor() {
+  elements.rarityInput.disabled = false;
   elements.dialog.close();
 }
 
@@ -454,6 +461,7 @@ function cardFromApi(match) {
   return {
     id: "",
     isDraft: true,
+    fromApi: true,
     name: match.name || "",
     series: match.set?.name || "",
     number: match.set?.printedTotal ? `${match.number}/${match.set.printedTotal}` : match.number || "",
@@ -469,6 +477,14 @@ function cardFromApi(match) {
     market,
     createdAt: Date.now(),
   };
+}
+
+function ensureRarityOption(rarity) {
+  if (!rarity || flatRarityOptions.includes(rarity)) return;
+  flatRarityOptions.push(rarity);
+  const option = `<option value="${escapeAttr(rarity)}">${escapeHtml(rarity)}</option>`;
+  elements.rarityInput.insertAdjacentHTML("beforeend", option);
+  elements.rarity.insertAdjacentHTML("beforeend", option);
 }
 
 function getVisibleCards() {
@@ -834,6 +850,8 @@ function normalizeRarity(rarity) {
   const clean = rarity;
   const exact = flatRarityOptions.find((option) => option.toLowerCase() === clean.toLowerCase());
   if (exact) return exact;
+  if (clean.includes("Trainer Gallery")) return "Trainer Gallery Rare Holo";
+  if (clean.includes("Galarian Gallery")) return "Galarian Gallery Rare Holo";
   if (clean.includes("Special Illustration")) return "Special Illustration Rare";
   if (clean.includes("Illustration")) return "Illustration Rare";
   if (clean.includes("Hyper")) return "Hyper Rare";
@@ -844,7 +862,7 @@ function normalizeRarity(rarity) {
   if (clean.includes("Holo")) return "Holo Rare";
   if (clean.includes("Uncommon")) return "Uncommon";
   if (clean.includes("Rare")) return "Rare";
-  return "Common";
+  return clean;
 }
 
 function clampPsaGrade() {
