@@ -476,6 +476,38 @@ h2 {
   color: var(--ink);
 }
 
+.binder-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 820px;
+  margin: 0 auto 18px;
+}
+
+.binder-breakdown div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #080d12;
+}
+
+.binder-breakdown strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.binder-breakdown span {
+  display: inline-flex;
+  margin: 0 6px 6px 0;
+  border: 1px solid rgba(47, 199, 189, 0.25);
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
 .binder-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(108px, 1fr));
@@ -530,6 +562,19 @@ h2 {
 
 .binder-slot small {
   color: var(--muted);
+}
+
+.binder-print {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  border: 1px solid rgba(47, 199, 189, 0.48);
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: rgba(5, 6, 6, 0.84);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 900;
 }
 
 .binder-slot em {
@@ -941,6 +986,10 @@ form {
 
   .toolbar select {
     max-width: none;
+  }
+
+  .binder-breakdown {
+    grid-template-columns: 1fr;
   }
 
   .binder-grid {

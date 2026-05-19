@@ -1,9 +1,29 @@
 const STORAGE_KEY = "pokemon-card-collector-v1";
 const BINDER_KEY = "pokemon-card-binder-marks-v1";
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
+const SETS_API_BASE = "https://api.pokemontcg.io/v2/sets";
 
 const defaultBinderSets = [
+  { id: "me3", name: "Perfect Order" },
+  { id: "me2pt5", name: "Ascended Heroes" },
+  { id: "me2", name: "Phantasmal Flames" },
+  { id: "me1", name: "Mega Evolution" },
+  { id: "rsv10pt5", name: "White Flare" },
+  { id: "zsv10pt5", name: "Black Bolt" },
+  { id: "sv10", name: "Destined Rivals" },
+  { id: "sv9", name: "Journey Together" },
+  { id: "sv8pt5", name: "Prismatic Evolutions" },
+  { id: "sv8", name: "Surging Sparks" },
+  { id: "sv7", name: "Stellar Crown" },
+  { id: "sv6pt5", name: "Shrouded Fable" },
+  { id: "sv6", name: "Twilight Masquerade" },
+  { id: "sv5", name: "Temporal Forces" },
+  { id: "sv4pt5", name: "Paldean Fates" },
+  { id: "sv4", name: "Paradox Rift" },
   { id: "sv3pt5", name: "151" },
+  { id: "sv3", name: "Obsidian Flames" },
+  { id: "sv2", name: "Paldea Evolved" },
+  { id: "sv1", name: "Scarlet & Violet" },
   { id: "swsh12tg", name: "Silver Tempest Trainer Gallery" },
   { id: "swsh11tg", name: "Lost Origin Trainer Gallery" },
   { id: "swsh10tg", name: "Astral Radiance Trainer Gallery" },
@@ -176,6 +196,7 @@ let lastAutofillKey = "";
 let searchTimer = null;
 let lastRemoteSearch = "";
 let binderCards = [];
+let binderSets = [...defaultBinderSets];
 let binderPage = 1;
 let binderSetId = defaultBinderSets[0].id;
 
@@ -194,6 +215,7 @@ const elements = {
   binderPrevButton: document.querySelector("#binderPrevButton"),
   binderNextButton: document.querySelector("#binderNextButton"),
   binderPageLabel: document.querySelector("#binderPageLabel"),
+  binderBreakdown: document.querySelector("#binderBreakdown"),
   search: document.querySelector("#searchInput"),
   rarity: document.querySelector("#rarityFilter"),
   sort: document.querySelector("#sortSelect"),
@@ -313,14 +335,44 @@ function persistBinderMarks() {
   localStorage.setItem(BINDER_KEY, JSON.stringify(binderMarks));
 }
 
-function populateBinderSets() {
-  const merged = [...defaultBinderSets];
+async function populateBinderSets() {
+  const merged = mergeBinderSets(defaultBinderSets, cardsToBinderSets(cards));
+  renderBinderSetOptions(merged);
+
+  try {
+    const response = await fetch(`${SETS_API_BASE}?orderBy=-releaseDate&pageSize=80`);
+    const payload = response.ok ? await response.json() : { data: [] };
+    const remoteSets = (payload.data ?? []).map((set) => ({ id: set.id, name: set.name }));
+    renderBinderSetOptions(mergeBinderSets(remoteSets, merged));
+  } catch {
+    renderBinderSetOptions(merged);
+  }
+}
+
+function cardsToBinderSets(collectionCards) {
+  return collectionCards
+    .map((card) => ({ id: getCardSetId(card), name: card.series || getCardSetId(card) }))
+    .filter((set) => set.id);
+}
+
+function mergeBinderSets(...setGroups) {
+  const seen = new Set();
+  return setGroups.flat().filter((set) => {
+    if (!set.id || seen.has(set.id)) return false;
+    seen.add(set.id);
+    return true;
+  });
+}
+
+function renderBinderSetOptions(sets) {
+  binderSets = sets;
+  if (!sets.some((set) => set.id === binderSetId)) binderSetId = sets[0]?.id || defaultBinderSets[0].id;
   cards.forEach((card) => {
     const setId = getCardSetId(card);
-    if (!setId || merged.some((set) => set.id === setId)) return;
-    merged.push({ id: setId, name: card.series || setId });
+    if (!setId || binderSets.some((set) => set.id === setId)) return;
+    binderSets.push({ id: setId, name: card.series || setId });
   });
-  elements.binderSetSelect.innerHTML = merged
+  elements.binderSetSelect.innerHTML = binderSets
     .map((set) => `<option value="${escapeAttr(set.id)}">${escapeHtml(set.name)}</option>`)
     .join("");
   elements.binderSetSelect.value = binderSetId;
@@ -633,6 +685,7 @@ function renderBinder() {
   elements.binderPageLabel.textContent = `${binderPage} / ${pages}`;
   elements.binderPrevButton.disabled = binderPage <= 1;
   elements.binderNextButton.disabled = binderPage >= pages;
+  elements.binderBreakdown.innerHTML = binderBreakdownTemplate();
   elements.binderGrid.innerHTML = visibleCards.length
     ? visibleCards.map(binderCardTemplate).join("")
     : `<p class="result-message">Nacitavam set do binderu...</p>`;
@@ -644,15 +697,50 @@ function renderBinder() {
 
 async function loadBinderSet() {
   if (activeView !== "binder") return;
+  binderCards = [];
+  elements.binderBreakdown.innerHTML = "";
   elements.binderGrid.innerHTML = `<p class="result-message">Nacitavam set do binderu...</p>`;
   try {
-    const response = await fetch(`${API_BASE}?q=${encodeURIComponent(`set.id:${binderSetId}`)}&pageSize=250&orderBy=number`);
-    const payload = response.ok ? await response.json() : { data: [] };
-    binderCards = payload.data ?? [];
+    const apiCards = await fetchBinderCards(binderSetId);
+    binderCards = buildMasterBinderEntries(apiCards);
   } catch {
     binderCards = [];
   }
   renderBinder();
+}
+
+async function fetchBinderCards(setId) {
+  const cardsFromSet = [];
+  let page = 1;
+  let totalCount = 0;
+  do {
+    const params = new URLSearchParams({
+      q: `set.id:${setId}`,
+      page: String(page),
+      pageSize: "250",
+      orderBy: "number",
+    });
+    const response = await fetch(`${API_BASE}?${params.toString()}`);
+    const payload = response.ok ? await response.json() : { data: [], totalCount: 0 };
+    cardsFromSet.push(...(payload.data ?? []));
+    totalCount = payload.totalCount ?? cardsFromSet.length;
+    page += 1;
+  } while (cardsFromSet.length < totalCount && page < 6);
+  return cardsFromSet;
+}
+
+function buildMasterBinderEntries(apiCards) {
+  return apiCards.flatMap((card) =>
+    masterVariantsForCard(card).map((variant, index) => ({
+      id: `${card.id}::${variant.key}`,
+      apiId: card.id,
+      markKey: `${card.number || card.id}::${variant.key}`,
+      legacyKey: card.number,
+      variantIndex: index,
+      variant,
+      card,
+    }))
+  );
 }
 
 function getBinderPageCount() {
@@ -667,37 +755,134 @@ function isPortfolioCard(card) {
   return card.status === "owned" || card.status === "binder";
 }
 
-function binderCardTemplate(card) {
-  const owned = isBinderCardOwned(card);
+function binderCardTemplate(entry) {
+  const card = entry.card;
+  const owned = isBinderCardOwned(entry);
   const image = card.images?.small
     ? `<img src="${escapeAttr(card.images.small)}" alt="${escapeAttr(card.name)}" />`
     : `<span>${escapeHtml((card.name || "?").slice(0, 2).toUpperCase())}</span>`;
 
   return `
-    <button class="binder-slot ${owned ? "owned" : "wanted"}" type="button" data-card-id="${escapeAttr(card.id)}">
+    <button class="binder-slot ${owned ? "owned" : "wanted"}" type="button" data-card-id="${escapeAttr(entry.id)}">
       <span class="binder-card-art">${image}</span>
+      <span class="binder-print">${escapeHtml(entry.variant.short)}</span>
       <strong>${escapeHtml(card.name)}</strong>
-      <small>${escapeHtml(card.number || "-")} / ${escapeHtml(card.rarity || "-")}</small>
+      <small>${escapeHtml(card.number || "-")} / ${escapeHtml(entry.variant.label)}</small>
       <em>${owned ? "Owned" : "Wanted"}</em>
     </button>
   `;
 }
 
-function toggleBinderCard(apiCardId) {
-  const card = binderCards.find((item) => item.id === apiCardId);
-  if (!card) return;
+function toggleBinderCard(entryId) {
+  const entry = binderCards.find((item) => item.id === entryId);
+  if (!entry) return;
   binderMarks[binderSetId] = binderMarks[binderSetId] || {};
-  binderMarks[binderSetId][card.number] = !isBinderCardOwned(card);
+  binderMarks[binderSetId][entry.markKey] = !isBinderCardOwned(entry);
   persistBinderMarks();
   renderBinder();
 }
 
-function isBinderCardOwned(apiCard) {
-  if (binderMarks[binderSetId]?.[apiCard.number]) return true;
+function isBinderCardOwned(entry) {
+  const marks = binderMarks[binderSetId] ?? {};
+  if (marks[entry.markKey]) return true;
+  if (entry.variantIndex === 0 && marks[entry.legacyKey]) return true;
   return cards.some((card) => {
-    const sameSet = getCardSetId(card) === binderSetId || card.series === apiCard.set?.name;
-    return isBinderCard(card) && sameSet && normalizeCardNumber(card.number.split("/")[0]) === normalizeCardNumber(apiCard.number);
+    const sameSet = getCardSetId(card) === binderSetId || card.series === entry.card.set?.name;
+    const sameNumber = normalizeCardNumber(String(card.number || "").split("/")[0]) === normalizeCardNumber(entry.card.number);
+    return isBinderCard(card) && sameSet && sameNumber && collectionFinishMatchesVariant(card, entry.variant);
   });
+}
+
+function masterVariantsForCard(card) {
+  const priceVariants = variantsFromMarketPrices(card);
+  if (priceVariants.length) return addSpecialReverseVariants(card, priceVariants);
+
+  const rarity = String(card.rarity || "").toLowerCase();
+  const variants = [];
+  if (rarity.includes("holo")) {
+    variants.push({ key: "holofoil", label: "Holofoil", short: "Holo" });
+  } else {
+    variants.push({ key: "normal", label: "Normal", short: "Normal" });
+  }
+
+  if (shouldHaveReverseSlot(card)) {
+    variants.push({ key: "reverseHolofoil", label: "Reverse Holofoil", short: "RH" });
+  }
+
+  return addSpecialReverseVariants(card, variants);
+}
+
+function variantsFromMarketPrices(card) {
+  const prices = card.tcgplayer?.prices || card.cardmarket?.prices || {};
+  const variants = [];
+  if (prices.normal) variants.push({ key: "normal", label: "Normal", short: "Normal" });
+  if (prices.holofoil) variants.push({ key: "holofoil", label: "Holofoil", short: "Holo" });
+  if (prices.reverseHolofoil) variants.push({ key: "reverseHolofoil", label: "Reverse Holofoil", short: "RH" });
+  return variants;
+}
+
+function addSpecialReverseVariants(card, variants) {
+  if (!setHasBallReverseVariants(card.set?.id)) return variants;
+  if (!shouldHaveReverseSlot(card)) return variants;
+  const withoutPlainReverse = variants.filter((variant) => variant.key !== "reverseHolofoil");
+  return [
+    ...withoutPlainReverse,
+    { key: "pokeBallReverseHolo", label: "Poke Ball Reverse Holo", short: "PB" },
+    { key: "masterBallReverseHolo", label: "Master Ball Reverse Holo", short: "MB" },
+  ];
+}
+
+function shouldHaveReverseSlot(card) {
+  const rarity = String(card.rarity || "").toLowerCase();
+  if (!rarity) return true;
+  if (rarity.includes("illustration") || rarity.includes("secret") || rarity.includes("hyper")) return false;
+  if (rarity.includes("ultra") || rarity.includes("double rare") || rarity.includes("ace spec")) return false;
+  return true;
+}
+
+function setHasBallReverseVariants(setId) {
+  return ["sv8pt5", "rsv10pt5", "zsv10pt5"].includes(setId);
+}
+
+function collectionFinishMatchesVariant(card, variant) {
+  const finish = String(card.finish || cardFinishFromRarity(card.rarity) || "").toLowerCase();
+  const label = variant.label.toLowerCase();
+  if (label.includes("master ball")) return finish.includes("master");
+  if (label.includes("poke ball")) return finish.includes("poke") || finish.includes("pokeball");
+  if (label.includes("reverse")) return finish.includes("reverse");
+  if (label.includes("holo")) return finish.includes("holo");
+  return finish.includes("normal") || (!finish.includes("holo") && !finish.includes("reverse"));
+}
+
+function binderBreakdownTemplate() {
+  if (!binderCards.length) return "";
+  return `
+    <div>
+      <strong>Printy</strong>
+      ${breakdownPills(groupBinderEntries((entry) => entry.variant.label))}
+    </div>
+    <div>
+      <strong>Rarity</strong>
+      ${breakdownPills(groupBinderEntries((entry) => entry.card.rarity || "Unknown"))}
+    </div>
+  `;
+}
+
+function groupBinderEntries(getKey) {
+  return binderCards.reduce((groups, entry) => {
+    const key = getKey(entry);
+    groups[key] = groups[key] || { owned: 0, total: 0 };
+    groups[key].total += 1;
+    if (isBinderCardOwned(entry)) groups[key].owned += 1;
+    return groups;
+  }, {});
+}
+
+function breakdownPills(groups) {
+  return Object.entries(groups)
+    .slice(0, 8)
+    .map(([label, stats]) => `<span>${escapeHtml(label)} ${stats.owned}/${stats.total}</span>`)
+    .join("");
 }
 
 function getCardSetId(card) {
