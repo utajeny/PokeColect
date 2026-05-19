@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pokemon Card Collector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">PK</div>
+          <div>
+            <p class="eyebrow">Pokemon karticky</p>
+            <h1>Pokemon Collector</h1>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Filtre zbierky">
+          <button class="nav-tab active" type="button" data-view="all">
+            <span class="icon" aria-hidden="true">#</span>
+            Vsetky karty
+          </button>
+          <button class="nav-tab" type="button" data-view="owned">
+            <span class="icon" aria-hidden="true">OK</span>
+            Mam v zbierke
+          </button>
+          <button class="nav-tab" type="button" data-view="wishlist">
+            <span class="icon" aria-hidden="true">*</span>
+            Chcem ziskat
+          </button>
+          <button class="nav-tab" type="button" data-view="trade">
+            <span class="icon" aria-hidden="true">&lt;&gt;</span>
+            Na vymenu
+          </button>
+        </nav>
+
+        <div class="collection-card">
+          <p>Dokoncenie Pokedexu</p>
+          <strong id="completionValue">0%</strong>
+          <div class="progress-track">
+            <span id="completionBar"></span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Prehlad</p>
+            <h2>Moje Pokemon karty</h2>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" id="seedButton" type="button" title="Pridat ukazkove Pokemon karty">Ukazky</button>
+            <button class="primary-button" id="openFormButton" type="button">Pridat kartu</button>
+          </div>
+        </header>
+
+        <section class="stats-grid" aria-label="Statistiky">
+          <article>
+            <span id="totalCount">0</span>
+            <p>Kariet spolu</p>
+          </article>
+          <article>
+            <span id="ownedCount">0</span>
+            <p>V zbierke</p>
+          </article>
+          <article>
+            <span id="missingCount">0</span>
+            <p>Na wishliste</p>
+          </article>
+          <article>
+            <span id="valueCount">0 EUR</span>
+            <p>Odhad hodnoty</p>
+          </article>
+        </section>
+
+        <section class="toolbar" aria-label="Vyhladavanie a triedenie">
+          <label class="search-box">
+            <span aria-hidden="true">?</span>
+            <input id="searchInput" type="search" placeholder="Hladat Pokemona, set alebo cislo..." />
+          </label>
+          <select id="rarityFilter" aria-label="Filtrovat podla rarity">
+            <option value="all">Vsetky rarity</option>
+            <option value="Common">Common</option>
+            <option value="Uncommon">Uncommon</option>
+            <option value="Rare">Rare</option>
+            <option value="Holo Rare">Holo Rare</option>
+            <option value="Ultra Rare">Ultra Rare</option>
+          </select>
+          <select id="sortSelect" aria-label="Zoradit">
+            <option value="newest">Najnovsie pridane</option>
+            <option value="name">Nazov A-Z</option>
+            <option value="value">Najvyssia hodnota</option>
+          </select>
+        </section>
+
+        <section class="cards-grid" id="cardsGrid" aria-live="polite"></section>
+        <section class="empty-state hidden" id="emptyState">
+          <div class="empty-art" aria-hidden="true"></div>
+          <h3>Ziadne Pokemon karty tu este nie su</h3>
+          <p>Pridaj prvu kartu alebo nacitaj ukazkove Pokemon karty a zbierka sa hned rozbehne.</p>
+          <button class="primary-button" id="emptyAddButton" type="button">Pridat kartu</button>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="cardDialog">
+      <form id="cardForm" method="dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">Editor</p>
+            <h3 id="dialogTitle">Pridat kartu</h3>
+          </div>
+          <button class="icon-button" id="closeDialogButton" type="button" aria-label="Zavriet">x</button>
+        </div>
+
+        <input id="cardId" type="hidden" />
+        <div class="form-grid">
+          <label>
+            Pokemon / nazov karty
+            <input id="nameInput" required maxlength="48" placeholder="napr. Pikachu" />
+          </label>
+          <label>
+            Set
+            <input id="seriesInput" required maxlength="40" placeholder="napr. Scarlet & Violet" />
+          </label>
+          <label>
+            Cislo
+            <input id="numberInput" maxlength="12" placeholder="napr. 025/165" />
+          </label>
+          <label>
+            Rarita
+            <select id="rarityInput">
+              <option>Common</option>
+              <option>Uncommon</option>
+              <option>Rare</option>
+              <option>Holo Rare</option>
+              <option>Ultra Rare</option>
+            </select>
+          </label>
+          <label>
+            Stav
+            <select id="statusInput">
+              <option value="owned">Mam v zbierke</option>
+              <option value="wishlist">Chcem ziskat</option>
+              <option value="trade">Na vymenu</option>
+            </select>
+          </label>
+          <label>
+            Hodnota v EUR
+            <input id="valueInput" type="number" min="0" step="0.5" placeholder="0" />
+          </label>
+          <label class="wide">
+            URL obrazka karty
+            <input id="imageInput" type="url" placeholder="Volitelne, napr. https://..." />
+          </label>
+          <label class="wide">
+            Poznamka
+            <textarea id="noteInput" rows="3" maxlength="180" placeholder="Stav, typ, edicia, kde si ju ziskal..."></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="ghost-button danger hidden" id="deleteButton" type="button">Vymazat</button>
+          <span></span>
+          <button class="ghost-button" id="cancelButton" type="button">Zrusit</button>
+          <button class="primary-button" type="submit">Ulozit</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
