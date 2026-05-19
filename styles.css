@@ -73,9 +73,12 @@ button {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   border-radius: 14px;
-  padding: 20px;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, rgba(47, 199, 189, 0.08), transparent 34%),
+    rgba(5, 7, 7, 0.96);
 }
 
 .main-panel {
@@ -87,13 +90,17 @@ button {
 .brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid rgba(47, 199, 189, 0.16);
+  border-radius: 10px;
+  background: rgba(47, 199, 189, 0.06);
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 54px;
+  width: 48px;
   aspect-ratio: 0.72;
   border-radius: 7px;
   background:
@@ -123,7 +130,7 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: 1.18rem;
+  font-size: 1.08rem;
   line-height: 1.15;
 }
 
@@ -134,7 +141,11 @@ h2 {
 
 .nav-tabs {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
 }
 
 .nav-tab,
@@ -149,33 +160,55 @@ h2 {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 44px;
+  min-height: 46px;
   padding: 0 12px;
   background: transparent;
   color: var(--muted);
   text-align: left;
   font-weight: 700;
+  position: relative;
+  overflow: hidden;
 }
 
 .nav-tab.active,
 .nav-tab:hover {
-  background: rgba(47, 199, 189, 0.14);
+  background: rgba(47, 199, 189, 0.12);
   color: var(--accent);
+}
+
+.nav-tab.active::before {
+  content: "";
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .icon {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.nav-tab:not(.active):hover .icon {
+  background: rgba(47, 199, 189, 0.1);
 }
 
 .collection-card {
   margin-top: auto;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #080a0a;
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(47, 199, 189, 0.08), transparent),
+    #080a0a;
 }
 
 .collection-card p {
@@ -188,7 +221,7 @@ h2 {
 .collection-card strong {
   display: block;
   margin-bottom: 12px;
-  font-size: 2rem;
+  font-size: 1.8rem;
 }
 
 .progress-track {
