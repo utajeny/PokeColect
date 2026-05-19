@@ -1,33 +1,34 @@
 const STORAGE_KEY = "pokemon-card-collector-v1";
 const BINDER_KEY = "pokemon-card-binder-marks-v1";
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
-const SETS_API_BASE = "https://api.pokemontcg.io/v2/sets";
+const SETS_API_BASE = "https://api.tcgdex.net/v2/en/sets";
+const TCGDEX_CARD_API = "https://api.tcgdex.net/v2/en/cards";
 
 const defaultBinderSets = [
-  { id: "me3", name: "Perfect Order" },
-  { id: "me2pt5", name: "Ascended Heroes" },
-  { id: "me2", name: "Phantasmal Flames" },
-  { id: "me1", name: "Mega Evolution" },
-  { id: "rsv10pt5", name: "White Flare" },
-  { id: "zsv10pt5", name: "Black Bolt" },
+  { id: "me03", name: "Perfect Order", apiId: "me3" },
+  { id: "me02.5", name: "Ascended Heroes", apiId: "me2pt5" },
+  { id: "me02", name: "Phantasmal Flames", apiId: "me2" },
+  { id: "me01", name: "Mega Evolution", apiId: "me1" },
+  { id: "sv10.5w", name: "White Flare", apiId: "rsv10pt5" },
+  { id: "sv10.5b", name: "Black Bolt", apiId: "zsv10pt5" },
   { id: "sv10", name: "Destined Rivals" },
-  { id: "sv9", name: "Journey Together" },
-  { id: "sv8pt5", name: "Prismatic Evolutions" },
-  { id: "sv8", name: "Surging Sparks" },
-  { id: "sv7", name: "Stellar Crown" },
-  { id: "sv6pt5", name: "Shrouded Fable" },
-  { id: "sv6", name: "Twilight Masquerade" },
-  { id: "sv5", name: "Temporal Forces" },
-  { id: "sv4pt5", name: "Paldean Fates" },
-  { id: "sv4", name: "Paradox Rift" },
-  { id: "sv3pt5", name: "151" },
-  { id: "sv3", name: "Obsidian Flames" },
-  { id: "sv2", name: "Paldea Evolved" },
-  { id: "sv1", name: "Scarlet & Violet" },
-  { id: "swsh12tg", name: "Silver Tempest Trainer Gallery" },
-  { id: "swsh11tg", name: "Lost Origin Trainer Gallery" },
-  { id: "swsh10tg", name: "Astral Radiance Trainer Gallery" },
-  { id: "swsh9tg", name: "Brilliant Stars Trainer Gallery" },
+  { id: "sv09", name: "Journey Together", apiId: "sv9" },
+  { id: "sv08.5", name: "Prismatic Evolutions", apiId: "sv8pt5" },
+  { id: "sv08", name: "Surging Sparks", apiId: "sv8" },
+  { id: "sv07", name: "Stellar Crown", apiId: "sv7" },
+  { id: "sv06.5", name: "Shrouded Fable", apiId: "sv6pt5" },
+  { id: "sv06", name: "Twilight Masquerade", apiId: "sv6" },
+  { id: "sv05", name: "Temporal Forces", apiId: "sv5" },
+  { id: "sv04.5", name: "Paldean Fates", apiId: "sv4pt5" },
+  { id: "sv04", name: "Paradox Rift", apiId: "sv4" },
+  { id: "sv03.5", name: "151", apiId: "sv3pt5" },
+  { id: "sv03", name: "Obsidian Flames", apiId: "sv3" },
+  { id: "sv02", name: "Paldea Evolved", apiId: "sv2" },
+  { id: "sv01", name: "Scarlet & Violet", apiId: "sv1" },
+  { id: "swsh12", name: "Silver Tempest" },
+  { id: "swsh11", name: "Lost Origin" },
+  { id: "swsh10", name: "Astral Radiance" },
+  { id: "swsh9", name: "Brilliant Stars" },
 ];
 
 const sampleCards = [
@@ -211,6 +212,7 @@ const elements = {
   binderSetSelect: document.querySelector("#binderSetSelect"),
   binderCount: document.querySelector("#binderCount"),
   binderOwnedCount: document.querySelector("#binderOwnedCount"),
+  binderProgress: document.querySelector("#binderProgress"),
   binderPages: document.querySelector("#binderPages"),
   binderPrevButton: document.querySelector("#binderPrevButton"),
   binderNextButton: document.querySelector("#binderNextButton"),
@@ -244,6 +246,7 @@ const elements = {
   missingCount: document.querySelector("#missingCount"),
   valueCount: document.querySelector("#valueCount"),
   portfolioValue: document.querySelector("#portfolioValue"),
+  marketMovers: document.querySelector("#marketMovers"),
   completionValue: document.querySelector("#completionValue"),
   completionBar: document.querySelector("#completionBar"),
 };
@@ -340,9 +343,19 @@ async function populateBinderSets() {
   renderBinderSetOptions(merged);
 
   try {
-    const response = await fetch(`${SETS_API_BASE}?orderBy=-releaseDate&pageSize=80`);
+    const response = await fetch(SETS_API_BASE);
     const payload = response.ok ? await response.json() : { data: [] };
-    const remoteSets = (payload.data ?? []).map((set) => ({ id: set.id, name: set.name }));
+    const allSets = Array.isArray(payload) ? payload : payload.data ?? [];
+    const remoteSets = allSets
+      .filter((set) => !String(set.id || "").startsWith("A") && !String(set.id || "").startsWith("B"))
+      .slice(-120)
+      .reverse()
+      .map((set) => ({
+        id: set.id,
+        name: set.name,
+        apiId: tcgdexToPokemonApiSetId(set.id),
+        cardCount: set.cardCount,
+      }));
     renderBinderSetOptions(mergeBinderSets(remoteSets, merged));
   } catch {
     renderBinderSetOptions(merged);
@@ -351,7 +364,10 @@ async function populateBinderSets() {
 
 function cardsToBinderSets(collectionCards) {
   return collectionCards
-    .map((card) => ({ id: getCardSetId(card), name: card.series || getCardSetId(card) }))
+    .map((card) => {
+      const apiId = getCardSetId(card);
+      return { id: pokemonApiToTcgdexSetId(apiId), name: card.series || apiId, apiId };
+    })
     .filter((set) => set.id);
 }
 
@@ -368,14 +384,71 @@ function renderBinderSetOptions(sets) {
   binderSets = sets;
   if (!sets.some((set) => set.id === binderSetId)) binderSetId = sets[0]?.id || defaultBinderSets[0].id;
   cards.forEach((card) => {
-    const setId = getCardSetId(card);
+    const apiId = getCardSetId(card);
+    const setId = pokemonApiToTcgdexSetId(apiId);
     if (!setId || binderSets.some((set) => set.id === setId)) return;
-    binderSets.push({ id: setId, name: card.series || setId });
+    binderSets.push({ id: setId, name: card.series || setId, apiId });
   });
   elements.binderSetSelect.innerHTML = binderSets
     .map((set) => `<option value="${escapeAttr(set.id)}">${escapeHtml(set.name)}</option>`)
     .join("");
   elements.binderSetSelect.value = binderSetId;
+}
+
+function pokemonApiToTcgdexSetId(setId) {
+  if (!setId) return "";
+  const known = {
+    me3: "me03",
+    me2pt5: "me02.5",
+    me2: "me02",
+    me1: "me01",
+    rsv10pt5: "sv10.5w",
+    zsv10pt5: "sv10.5b",
+    sv8pt5: "sv08.5",
+    sv6pt5: "sv06.5",
+    sv4pt5: "sv04.5",
+    sv3pt5: "sv03.5",
+    sv1: "sv01",
+    sv2: "sv02",
+    sv3: "sv03",
+    sv4: "sv04",
+    sv5: "sv05",
+    sv6: "sv06",
+    sv7: "sv07",
+    sv8: "sv08",
+    sv9: "sv09",
+    swsh12tg: "swsh12",
+    swsh11tg: "swsh11",
+    swsh10tg: "swsh10",
+    swsh9tg: "swsh9",
+  };
+  return known[setId] || setId;
+}
+
+function tcgdexToPokemonApiSetId(setId) {
+  if (!setId) return "";
+  const known = {
+    "me03": "me3",
+    "me02.5": "me2pt5",
+    "me02": "me2",
+    "me01": "me1",
+    "sv10.5w": "rsv10pt5",
+    "sv10.5b": "zsv10pt5",
+    "sv08.5": "sv8pt5",
+    "sv06.5": "sv6pt5",
+    "sv04.5": "sv4pt5",
+    "sv03.5": "sv3pt5",
+    "sv01": "sv1",
+    "sv02": "sv2",
+    "sv03": "sv3",
+    "sv04": "sv4",
+    "sv05": "sv5",
+    "sv06": "sv6",
+    "sv07": "sv7",
+    "sv08": "sv8",
+    "sv09": "sv9",
+  };
+  return known[setId] || setId;
 }
 
 function populateRaritySelects() {
@@ -668,6 +741,33 @@ function renderStats() {
   elements.portfolioValue.textContent = `${value.toLocaleString("sk-SK")} EUR`;
   elements.completionValue.textContent = `${completion}%`;
   elements.completionBar.style.width = `${completion}%`;
+  renderMarketMovers();
+}
+
+function renderMarketMovers() {
+  const movers = cards
+    .filter(isPortfolioCard)
+    .map((card) => ({ card, move: marketMove(card) }))
+    .filter((item) => item.move.value !== 0)
+    .sort((a, b) => Math.abs(b.move.value) - Math.abs(a.move.value))
+    .slice(0, 4);
+
+  elements.marketMovers.innerHTML = movers.length
+    ? movers.map(({ card, move }) => marketMoverTemplate(card, move)).join("")
+    : `<p class="result-message">Zatial nemam dost trend dat. Klikni na Ceny alebo pridaj kartu z vyhladavania.</p>`;
+}
+
+function marketMoverTemplate(card, move) {
+  const moveClass = move.value >= 0 ? "positive" : "negative";
+  return `
+    <article class="mover-row">
+      <div>
+        <strong>${escapeHtml(card.name)}</strong>
+        <span>${escapeHtml(card.series || "-")} / ${escapeHtml(card.number || "-")}</span>
+      </div>
+      <p class="${moveClass}">${escapeHtml(move.label)}</p>
+    </article>
+  `;
 }
 
 function renderBinder() {
@@ -681,6 +781,7 @@ function renderBinder() {
 
   elements.binderCount.textContent = binderCards.length;
   elements.binderOwnedCount.textContent = owned;
+  elements.binderProgress.textContent = `${binderCards.length ? Math.round((owned / binderCards.length) * 100) : 0}%`;
   elements.binderPages.textContent = pages;
   elements.binderPageLabel.textContent = `${binderPage} / ${pages}`;
   elements.binderPrevButton.disabled = binderPage <= 1;
@@ -699,17 +800,37 @@ async function loadBinderSet() {
   if (activeView !== "binder") return;
   binderCards = [];
   elements.binderBreakdown.innerHTML = "";
-  elements.binderGrid.innerHTML = `<p class="result-message">Nacitavam set do binderu...</p>`;
+  elements.binderGrid.innerHTML = `<p class="result-message">Nacitavam master set z TCGdex...</p>`;
   try {
     const apiCards = await fetchBinderCards(binderSetId);
     binderCards = buildMasterBinderEntries(apiCards);
   } catch {
-    binderCards = [];
+    try {
+      const fallbackCards = await fetchPokemonApiBinderCards(tcgdexToPokemonApiSetId(binderSetId));
+      binderCards = buildMasterBinderEntries(fallbackCards);
+    } catch {
+      binderCards = [];
+    }
   }
   renderBinder();
 }
 
 async function fetchBinderCards(setId) {
+  const response = await fetch(`${SETS_API_BASE}/${setId}`);
+  if (!response.ok) throw new Error("TCGdex set not found");
+  const set = await response.json();
+  const summaries = set.cards ?? [];
+  const fullCards = await Promise.all(
+    summaries.map(async (summary) => {
+      const cardResponse = await fetch(`${TCGDEX_CARD_API}/${summary.id}`);
+      if (!cardResponse.ok) return normalizeTcgdexBinderCard(summary, set);
+      return normalizeTcgdexBinderCard(await cardResponse.json(), set);
+    })
+  );
+  return fullCards;
+}
+
+async function fetchPokemonApiBinderCards(setId) {
   const cardsFromSet = [];
   let page = 1;
   let totalCount = 0;
@@ -727,6 +848,19 @@ async function fetchBinderCards(setId) {
     page += 1;
   } while (cardsFromSet.length < totalCount && page < 6);
   return cardsFromSet;
+}
+
+function normalizeTcgdexBinderCard(card, set) {
+  return {
+    id: card.id,
+    name: card.name,
+    number: card.localId,
+    rarity: card.rarity || "Unknown",
+    set: { id: set.id, name: set.name },
+    images: { small: `${card.image}/low.webp`, large: `${card.image}/high.webp` },
+    variants: card.variants || {},
+    source: "tcgdex",
+  };
 }
 
 function buildMasterBinderEntries(apiCards) {
@@ -787,13 +921,15 @@ function isBinderCardOwned(entry) {
   if (marks[entry.markKey]) return true;
   if (entry.variantIndex === 0 && marks[entry.legacyKey]) return true;
   return cards.some((card) => {
-    const sameSet = getCardSetId(card) === binderSetId || card.series === entry.card.set?.name;
+    const sameSet = pokemonApiToTcgdexSetId(getCardSetId(card)) === binderSetId || card.series === entry.card.set?.name;
     const sameNumber = normalizeCardNumber(String(card.number || "").split("/")[0]) === normalizeCardNumber(entry.card.number);
     return isBinderCard(card) && sameSet && sameNumber && collectionFinishMatchesVariant(card, entry.variant);
   });
 }
 
 function masterVariantsForCard(card) {
+  if (card.source === "tcgdex") return variantsFromTcgdex(card);
+
   const priceVariants = variantsFromMarketPrices(card);
   if (priceVariants.length) return addSpecialReverseVariants(card, priceVariants);
 
@@ -810,6 +946,17 @@ function masterVariantsForCard(card) {
   }
 
   return addSpecialReverseVariants(card, variants);
+}
+
+function variantsFromTcgdex(card) {
+  const flags = card.variants || {};
+  const variants = [];
+  if (flags.firstEdition) variants.push({ key: "firstEdition", label: "1st Edition", short: "1st" });
+  if (flags.normal) variants.push({ key: "normal", label: "Normal", short: "Normal" });
+  if (flags.holo) variants.push({ key: "holofoil", label: "Holofoil", short: "Holo" });
+  if (flags.reverse) variants.push({ key: "reverseHolofoil", label: "Reverse Holofoil", short: "RH" });
+  if (flags.wPromo) variants.push({ key: "wPromo", label: "W Promo", short: "W" });
+  return addSpecialReverseVariants(card, variants.length ? variants : [{ key: "card", label: card.rarity || "Card", short: "Card" }]);
 }
 
 function variantsFromMarketPrices(card) {
@@ -841,7 +988,7 @@ function shouldHaveReverseSlot(card) {
 }
 
 function setHasBallReverseVariants(setId) {
-  return ["sv8pt5", "rsv10pt5", "zsv10pt5"].includes(setId);
+  return ["sv08.5", "sv10.5w", "sv10.5b", "sv8pt5", "rsv10pt5", "zsv10pt5"].includes(setId);
 }
 
 function collectionFinishMatchesVariant(card, variant) {

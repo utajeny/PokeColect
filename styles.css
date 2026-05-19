@@ -332,6 +332,57 @@ h2 {
   font-weight: 700;
 }
 
+.market-movers {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.mover-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #080d12;
+}
+
+.mover-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.mover-row strong {
+  color: var(--ink);
+}
+
+.mover-row span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.mover-row p {
+  margin: 0;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.positive {
+  color: var(--accent);
+}
+
+.negative {
+  color: #ff8f70;
+}
+
 .toolbar {
   gap: 10px;
   margin-bottom: 18px;
@@ -450,6 +501,11 @@ h2 {
   margin: 0;
   color: var(--muted);
   font-weight: 800;
+}
+
+.binder-progress-line {
+  margin-top: 6px !important;
+  color: var(--accent) !important;
 }
 
 .binder-toggle {

@@ -91,6 +91,16 @@
           </article>
         </section>
 
+        <section class="market-movers" aria-label="Market movers">
+          <div class="section-head">
+            <div>
+              <h3>Market movers</h3>
+              <p>Najvacsie pohyby v tvojom portfoliu podla trend ceny.</p>
+            </div>
+          </div>
+          <div class="mover-list" id="marketMovers"></div>
+        </section>
+
         <section class="toolbar" aria-label="Vyhladavanie a triedenie">
           <label class="search-box">
             <span aria-hidden="true">?</span>
@@ -121,6 +131,7 @@
             <div>
               <h3>Binder</h3>
               <p><span id="binderOwnedCount">0</span> owned / <span id="binderCount">0</span> master slots / <span id="binderPages">0</span> pages</p>
+              <p class="binder-progress-line"><span id="binderProgress">0%</span> complete / data: TCGdex variants</p>
             </div>
             <select id="binderSetSelect" aria-label="Vybrat set do binderu"></select>
             <div class="binder-toggle" aria-label="Binder layout">
@@ -224,6 +235,6 @@
       </form>
     </dialog>
 
-    <script src="app.js?v=master-set-binder"></script>
+    <script src="app.js?v=tcgdex-master-set"></script>
   </body>
 </html>
