@@ -6,6 +6,29 @@ const API_BASE = "https://api.pokemontcg.io/v2/cards";
 const SETS_API_BASE = "https://api.tcgdex.net/v2/en/sets";
 const TCGDEX_CARD_API = "https://api.tcgdex.net/v2/en/cards";
 
+const stampedGrandmasterPresets = {
+  me02: [
+    { number: "P01", name: "Toxtricity", stamp: "Build & Battle Stamp" },
+    { number: "P02", name: "Ceruledge", stamp: "Build & Battle Stamp" },
+    { number: "P03", name: "Flygon", stamp: "Build & Battle Stamp" },
+    { number: "P04", name: "Zacian", stamp: "Build & Battle Stamp" },
+    { number: "P05", name: "Toxtricity", stamp: "STAFF Stamp" },
+    { number: "P06", name: "Ceruledge", stamp: "STAFF Stamp" },
+    { number: "P07", name: "Flygon", stamp: "STAFF Stamp" },
+    { number: "P08", name: "Zacian", stamp: "STAFF Stamp" },
+    { number: "P09", name: "Suicune", stamp: "GameStop Stamp" },
+    { number: "P10", name: "Suicune", stamp: "EB Games Stamp" },
+    { number: "P11", name: "Charcadet", stamp: "Pokemon Center Stamp" },
+    { number: "P12", name: "Charcadet", stamp: "ETB Promo" },
+    { number: "P13", name: "Reshiram", stamp: "Phantasmal Flames Stamp" },
+    { number: "P14", name: "Suicune", stamp: "Best Buy Stamp" },
+    { number: "P15", name: "Cottonee", stamp: "Promo" },
+    { number: "P16", name: "Whimsicott", stamp: "Promo" },
+    { number: "P17", name: "Dawn", stamp: "STAFF Stamp" },
+    { number: "P18", name: "Phantasmal Flames", stamp: "Retail Stamp" },
+  ],
+};
+
 const defaultBinderSets = [
   { id: "me03", name: "Perfect Order", apiId: "me3" },
   { id: "me02.5", name: "Ascended Heroes", apiId: "me2pt5" },
@@ -229,6 +252,7 @@ const elements = {
   binderImportStatus: document.querySelector("#binderImportStatus"),
   binderTargetCount: document.querySelector("#binderTargetCount"),
   binderTargetButton: document.querySelector("#binderTargetButton"),
+  binderStampedPresetButton: document.querySelector("#binderStampedPresetButton"),
   binderTargetStatus: document.querySelector("#binderTargetStatus"),
   search: document.querySelector("#searchInput"),
   rarity: document.querySelector("#rarityFilter"),
@@ -305,6 +329,7 @@ elements.binderNextButton.addEventListener("click", () => {
   renderBinder();
 });
 elements.binderImportButton.addEventListener("click", importBinderList);
+elements.binderStampedPresetButton.addEventListener("click", applyStampedGrandmasterPreset);
 elements.binderTargetButton.addEventListener("click", applyBinderTargetCount);
 
 elements.form.addEventListener("submit", (event) => {
@@ -476,6 +501,37 @@ function applyBinderTargetCount() {
   persistBinderExtras();
   elements.binderTargetStatus.textContent = `Doplnene na ${target} slotov.`;
   loadBinderSet();
+}
+
+function applyStampedGrandmasterPreset() {
+  const preset = stampedGrandmasterPresets[binderSetId] || [];
+  if (!preset.length) {
+    elements.binderTargetStatus.textContent = "Pre tento set este nemam stamped preset.";
+    return;
+  }
+
+  const existing = (binderExtras[binderSetId] || []).filter((extra) => extra.variant?.key !== "grandmasterExtra");
+  const existingKeys = new Set(existing.map((extra) => `${extra.number}-${extra.name}-${extra.variant?.label}`));
+  const nextExtras = [
+    ...existing,
+    ...preset
+      .map((entry) => stampedExtraEntry(entry))
+      .filter((entry) => !existingKeys.has(`${entry.number}-${entry.name}-${entry.variant.label}`)),
+  ];
+
+  binderExtras[binderSetId] = nextExtras;
+  persistBinderExtras();
+  elements.binderTargetStatus.textContent = `Pridane stamped sloty: ${nextExtras.length - existing.length}.`;
+  loadBinderSet();
+}
+
+function stampedExtraEntry(entry) {
+  return {
+    id: `${binderSetId}-${entry.number}-${entry.stamp}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    number: entry.number,
+    name: entry.name,
+    variant: { key: "stamped", label: entry.stamp, short: "Stamp" },
+  };
 }
 
 function parseBinderImport(raw) {
@@ -918,7 +974,7 @@ function renderBinder() {
   elements.binderCount.textContent = binderCards.length;
   elements.binderOwnedCount.textContent = owned;
   elements.binderProgress.textContent = `${binderCards.length ? Math.round((owned / binderCards.length) * 100) : 0}%`;
-  elements.binderSource.textContent = binderImports.some((set) => set.id === binderSetId) ? "imported list" : "TCGdex variants";
+  elements.binderSource.textContent = binderDataSourceLabel();
   elements.binderPages.textContent = pages;
   elements.binderPageLabel.textContent = `${binderPage} / ${pages}`;
   elements.binderPrevButton.disabled = binderPage <= 1;
@@ -931,6 +987,12 @@ function renderBinder() {
   elements.binderGrid.querySelectorAll(".binder-slot").forEach((button) => {
     button.addEventListener("click", () => toggleBinderCard(button.dataset.cardId));
   });
+}
+
+function binderDataSourceLabel() {
+  if (binderImports.some((set) => set.id === binderSetId)) return "imported list";
+  if ((binderExtras[binderSetId] || []).length) return "TCGdex + stamped extras";
+  return "TCGdex variants";
 }
 
 async function loadBinderSet() {
