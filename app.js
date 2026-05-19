@@ -1,4 +1,5 @@
 const STORAGE_KEY = "pokemon-card-collector-v1";
+const API_BASE = "https://api.pokemontcg.io/v2/cards";
 
 const sampleCards = [
   {
@@ -8,6 +9,7 @@ const sampleCards = [
     rarity: "Common",
     status: "owned",
     value: 3.5,
+    psa10: 0,
     note: "Elektricky typ, pekny stav.",
   },
   {
@@ -17,6 +19,7 @@ const sampleCards = [
     rarity: "Ultra Rare",
     status: "wishlist",
     value: 32,
+    psa10: 0,
     note: "Hlavna karta, ktoru chcem ziskat.",
   },
   {
@@ -26,6 +29,7 @@ const sampleCards = [
     rarity: "Holo Rare",
     status: "owned",
     value: 9,
+    psa10: 0,
     note: "Holo verzia do albumu.",
   },
   {
@@ -35,6 +39,7 @@ const sampleCards = [
     rarity: "Common",
     status: "trade",
     value: 2,
+    psa10: 0,
     note: "Druhy kus, vhodny na vymenu.",
   },
   {
@@ -44,6 +49,7 @@ const sampleCards = [
     rarity: "Rare",
     status: "owned",
     value: 6,
+    psa10: 0,
     note: "Oblubeny Pokemon v zbierke.",
   },
 ];
@@ -81,8 +87,11 @@ const elements = {
   rarityInput: document.querySelector("#rarityInput"),
   status: document.querySelector("#statusInput"),
   value: document.querySelector("#valueInput"),
+  psa10: document.querySelector("#psa10Input"),
   image: document.querySelector("#imageInput"),
   note: document.querySelector("#noteInput"),
+  refreshPricesButton: document.querySelector("#refreshPricesButton"),
+  priceStatus: document.querySelector("#priceStatus"),
   deleteButton: document.querySelector("#deleteButton"),
   totalCount: document.querySelector("#totalCount"),
   ownedCount: document.querySelector("#ownedCount"),
@@ -97,6 +106,7 @@ document.querySelector("#emptyAddButton").addEventListener("click", () => openEd
 document.querySelector("#closeDialogButton").addEventListener("click", closeEditor);
 document.querySelector("#cancelButton").addEventListener("click", closeEditor);
 document.querySelector("#seedButton").addEventListener("click", addSamples);
+elements.refreshPricesButton.addEventListener("click", () => refreshMarketPrices({ force: true }));
 
 document.querySelectorAll(".nav-tab").forEach((button) => {
   button.addEventListener("click", () => {
@@ -124,6 +134,7 @@ elements.deleteButton.addEventListener("click", () => {
 });
 
 render();
+refreshMarketPrices();
 
 function loadCards() {
   try {
@@ -159,6 +170,7 @@ function openEditor(card = null) {
   elements.rarityInput.value = card?.rarity ?? "Common";
   elements.status.value = card?.status ?? "owned";
   elements.value.value = card?.value ?? "";
+  elements.psa10.value = card?.psa10 || "";
   elements.image.value = card?.image ?? "";
   elements.note.value = card?.note ?? "";
   elements.dialog.showModal();
@@ -180,8 +192,10 @@ function saveFromForm() {
     rarity: elements.rarityInput.value,
     status: elements.status.value,
     value: Number(elements.value.value || 0),
+    psa10: Number(elements.psa10.value || 0),
     image: elements.image.value.trim(),
     note: elements.note.value.trim(),
+    market: existing?.market ?? null,
     createdAt: existing?.createdAt ?? Date.now(),
   };
 
@@ -228,7 +242,7 @@ function renderStats() {
   const total = cards.length;
   const owned = cards.filter((card) => card.status === "owned").length;
   const missing = cards.filter((card) => card.status === "wishlist").length;
-  const value = cards.reduce((sum, card) => sum + (card.status === "owned" ? Number(card.value) : 0), 0);
+  const value = cards.reduce((sum, card) => sum + (card.status === "owned" ? getCardValue(card) : 0), 0);
   const completion = total ? Math.round((owned / total) * 100) : 0;
 
   elements.totalCount.textContent = total;
@@ -262,12 +276,100 @@ function cardTemplate(card) {
         </div>
         <p class="note">${escapeHtml(note)}</p>
         <div class="card-footer">
-          <span class="value">${Number(card.value || 0).toLocaleString("sk-SK")} EUR</span>
+          <span class="value">${getCardValue(card).toLocaleString("sk-SK")} EUR</span>
           <button class="edit-button" type="button" data-id="${card.id}" aria-label="Upravit ${escapeAttr(card.name)}">Edit</button>
         </div>
+        <div class="market-row">
+          <span>CM low: <strong>${formatPrice(card.market?.lowPrice)}</strong></span>
+          <span>Trend: <strong>${formatPrice(card.market?.trendPrice)}</strong></span>
+        </div>
+        <div class="market-row">
+          <span>Avg 30d: <strong>${formatPrice(card.market?.avg30)}</strong></span>
+          <span>PSA10: <strong>${formatPrice(card.psa10)}</strong></span>
+        </div>
+        <p class="market-date">${marketDate(card)}</p>
       </div>
     </article>
   `;
+}
+
+function getCardValue(card) {
+  return Number(card.market?.lowPrice || card.value || 0);
+}
+
+function formatPrice(value) {
+  const number = Number(value || 0);
+  return number ? `${number.toLocaleString("sk-SK")} EUR` : "-";
+}
+
+function marketDate(card) {
+  if (!card.market?.updatedAt) return "Ceny z trhu este neboli nacitane.";
+  return `Cardmarket aktualizovane: ${card.market.updatedAt}`;
+}
+
+async function refreshMarketPrices({ force = false } = {}) {
+  if (!cards.length) return;
+
+  const shouldSkip = !force && cards.every((card) => {
+    const checkedAt = card.market?.checkedAt || 0;
+    return Date.now() - checkedAt < 1000 * 60 * 60 * 12;
+  });
+
+  if (shouldSkip) return;
+
+  elements.priceStatus.textContent = "Nacitavam Cardmarket ceny...";
+  elements.refreshPricesButton.disabled = true;
+
+  let updated = 0;
+  for (const card of cards) {
+    const market = await fetchCardMarket(card);
+    if (market) {
+      card.market = market;
+      updated += 1;
+    } else {
+      card.market = { ...(card.market || {}), checkedAt: Date.now(), error: true };
+    }
+  }
+
+  persist();
+  render();
+  elements.refreshPricesButton.disabled = false;
+  elements.priceStatus.textContent = updated
+    ? `Aktualizovane Cardmarket ceny pre ${updated} kariet.`
+    : "Ceny sa nepodarilo nacitat. Skus neskor alebo upresni nazov/set karty.";
+}
+
+async function fetchCardMarket(card) {
+  try {
+    const query = buildSearchQuery(card);
+    const response = await fetch(`${API_BASE}?q=${encodeURIComponent(query)}&pageSize=1`);
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const match = payload.data?.[0];
+    const prices = match?.cardmarket?.prices;
+    if (!prices) return null;
+
+    return {
+      cardId: match.id,
+      cardmarketUrl: match.cardmarket.url,
+      imageUrl: match.images?.small || "",
+      lowPrice: prices.lowPrice || 0,
+      trendPrice: prices.trendPrice || 0,
+      avg1: prices.avg1 || 0,
+      avg7: prices.avg7 || 0,
+      avg30: prices.avg30 || 0,
+      updatedAt: match.cardmarket.updatedAt,
+      checkedAt: Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildSearchQuery(card) {
+  const parts = [`name:"${card.name.replaceAll('"', '\\"')}"`];
+  if (card.number) parts.push(`number:"${card.number.split("/")[0]}"`);
+  return parts.join(" ");
 }
 
 function escapeHtml(value) {

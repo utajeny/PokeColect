@@ -56,6 +56,7 @@
           </div>
           <div class="topbar-actions">
             <button class="ghost-button" id="seedButton" type="button" title="Pridat ukazkove Pokemon karty">Ukazky</button>
+            <button class="ghost-button" id="refreshPricesButton" type="button" title="Aktualizovat Cardmarket ceny">Ceny</button>
             <button class="primary-button" id="openFormButton" type="button">Pridat kartu</button>
           </div>
         </header>
@@ -98,6 +99,8 @@
             <option value="value">Najvyssia hodnota</option>
           </select>
         </section>
+
+        <p class="price-status" id="priceStatus">Cardmarket ceny sa aktualizuju automaticky po otvoreni appky.</p>
 
         <section class="cards-grid" id="cardsGrid" aria-live="polite"></section>
         <section class="empty-state hidden" id="emptyState">
@@ -154,6 +157,10 @@
           <label>
             Hodnota v EUR
             <input id="valueInput" type="number" min="0" step="0.5" placeholder="0" />
+          </label>
+          <label>
+            PSA 10 v EUR
+            <input id="psa10Input" type="number" min="0" step="1" placeholder="Volitelne" />
           </label>
           <label class="wide">
             URL obrazka karty

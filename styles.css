@@ -274,6 +274,14 @@ h2 {
   margin-bottom: 18px;
 }
 
+.price-status {
+  min-height: 20px;
+  margin: -6px 0 18px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .search-box {
   position: relative;
   flex: 1;
@@ -432,6 +440,7 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  margin-bottom: 10px;
 }
 
 .value {
@@ -439,12 +448,31 @@ textarea:focus {
 }
 
 .edit-button {
-  min-width: 38px;
+  min-width: 54px;
   height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   font-weight: 800;
+}
+
+.market-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.market-row strong {
+  color: var(--ink);
+}
+
+.market-date {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 
 .empty-state {
